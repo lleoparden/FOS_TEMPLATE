@@ -1,0 +1,12 @@
+obj/
+*.o
+*.out
+*.img
+*.asm
+*.sym
+*.d
+bochs.log
+stdout
+UpgradeLog.XML
+.settings/
+*.bat

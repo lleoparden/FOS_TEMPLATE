@@ -1,6 +1,5 @@
 /*
- * dynamic_allocator
- *
+ * dynamic_allocatorc *
  *  Created on: Sep 21, 2023
  *      Author: HP
  */

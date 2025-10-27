@@ -1,7 +1,6 @@
 // Basic string routines.  Not hardware optimized, but not shabby.
 
 #include <inc/string.h>
-#include <inc/assert.h>
 
 int
 strlen(const char *s)
@@ -352,6 +351,14 @@ int strsplit(char *string, char *SPLIT_CHARS, char **argv, int * argc)
 
 char* str2lower(char *dst, const char *src)
 {
-	panic("str2lower is not implemented yet!");
-	return NULL;
+	char* ret = dst;
+	for (int i = 0; i < strlen(src); ++i)
+	{
+		dst[i] = src[i] ;
+		if (src[i] >= 'A' && src[i] <= 'Z')
+		{
+			dst[i] += 32 ;
+		}
+	}
+	return ret;
 }

@@ -18,6 +18,8 @@
 #include "../mem/kheap.h"
 #include "../mem/memory_manager.h"
 #include "../tests/tst_handler.h"
+#include "../tests/utilities.h"
+#include "../cons/console.h"
 
 //TODO:LAB2.Hands-on: declare start address variable of "My int array"
 
@@ -45,24 +47,28 @@ struct Command commands[] =
 		{"killall", "kill all environments in the system", command_kill_all, 0},
 		{"fifo", "set replacement algorithm to FIFO", command_set_page_rep_FIFO, 0},
 		{"clock", "set replacement algorithm to CLOCK", command_set_page_rep_CLOCK, 0},
-		{"modifiedclock", "set replacement algorithm to modified CLOCK", command_set_page_rep_ModifiedCLOCK, 0},
+		{"modclock", "set replacement algorithm to modified CLOCK", command_set_page_rep_ModifiedCLOCK, 0},
+		{"optimal", "set replacement algorithm to OPTIMAL", command_set_page_rep_OPTIMAL, 0},
 		{"rep?", "print current replacement algorithm", command_print_page_rep, 0},
 		{"uhfirstfit", "set USER heap placement strategy to FIRST FIT", command_set_uheap_plac_FIRSTFIT, 0},
 		{"uhbestfit", "set USER heap placement strategy to BEST FIT", command_set_uheap_plac_BESTFIT, 0},
 		{"uhnextfit", "set USER heap placement strategy to NEXT FIT", command_set_uheap_plac_NEXTFIT, 0},
 		{"uhworstfit", "set USER heap placement strategy to WORST FIT", command_set_uheap_plac_WORSTFIT, 0},
+		{"uhcustomfit", "set USER heap placement strategy to CUSTOM FIT", command_set_uheap_plac_CUSTOMFIT, 0},
 		{"uheap?", "print current USER heap placement strategy", command_print_uheap_plac, 0},
 		{"khcontalloc", "set KERNEL heap placement strategy to CONTINUOUS ALLOCATION", command_set_kheap_plac_CONTALLOC, 0},
 		{"khfirstfit", "set KERNEL heap placement strategy to FIRST FIT", command_set_kheap_plac_FIRSTFIT, 0},
 		{"khbestfit", "set KERNEL heap placement strategy to BEST FIT", command_set_kheap_plac_BESTFIT, 0},
 		{"khnextfit", "set KERNEL heap placement strategy to NEXT FIT", command_set_kheap_plac_NEXTFIT, 0},
 		{"khworstfit", "set KERNEL heap placement strategy to WORST FIT", command_set_kheap_plac_WORSTFIT, 0},
+		{"khcustomfit", "set KERNEL heap placement strategy to CUSTOM FIT", command_set_kheap_plac_CUSTOMFIT, 0},
 		{"kheap?", "print current KERNEL heap placement strategy", command_print_kheap_plac, 0},
 		{"nobuff", "disable buffering", command_disable_buffering, 0},
 		{"buff", "enable buffering", command_enable_buffering, 0},
 		{"nomodbuff", "disable modified buffer", command_disable_modified_buffer, 0},
 		{"modbuff", "enable modified buffer", command_enable_modified_buffer, 0},
 		{"modbufflength?", "get modified buffer length", command_get_modified_buffer_length, 0},
+		{"cls", "clear screen", command_cls, 0},
 
 		//*****************************//
 		/* COMMANDS WITH ONE ARGUMENT */
@@ -98,6 +104,7 @@ struct Command commands[] =
 		/* COMMANDS WITH THREE ARGUMENTS */
 		//********************************//
 		{ "rub", "reads block of bytes from specific location in given environment" ,command_readuserblock, 3},
+		{ "schedPRIRR", "switch the scheduler to PRIORITY RR with given #priorities, quantum and starvation threshold", command_sch_PRIRR, 3},
 
 		//**************************************//
 		/* COMMANDS WITH AT LEAST ONE ARGUMENT */
@@ -112,6 +119,7 @@ struct Command commands[] =
 		{ "schedMLFQ", "switch the scheduler to MLFQ with given # queues & quantums", command_sch_MLFQ, -1},
 		{"load", "load a single user program to mem with status = NEW", commnad_load_env, -1},
 		{"tst", "run the given test", command_tst, -1},
+
 };
 
 //Number of commands = size of the array / size of command structure
@@ -123,6 +131,7 @@ uint32 NUM_OF_COMMANDS  = (sizeof(commands)/sizeof(struct Command));
 //print name and description of each command
 int command_help(int number_of_arguments, char **arguments)
 {
+
 	int i;
 	for (i = 0; i < NUM_OF_COMMANDS; i++)
 		cprintf("%s - %s\n", commands[i].name, commands[i].description);
@@ -152,7 +161,6 @@ int command_kernel_info(int number_of_arguments, char **arguments )
 //*****************************************************************************************//
 //************************************ LAB COMMANDS ***************************************//
 //*****************************************************************************************//
-
 //===========================================================================
 //Lab2.Examples
 //=============
@@ -162,6 +170,7 @@ int command_writemem_k(int number_of_arguments, char **arguments)
 
 	unsigned char* address = (unsigned char*)strtol(arguments[1], NULL, 16)+KERNEL_BASE;
 	int stringLen = strlen(arguments[2]);
+
 	for(int i=0;i < stringLen; i++)
 	{
 		*address = arguments[2][i];
@@ -383,6 +392,7 @@ int command_ft(int number_of_arguments, char **arguments)
 	return 0;
 }
 
+
 //*****************************************************************************************//
 //***************************** UTILITY/TESING COMMANDS ***********************************//
 //*****************************************************************************************//
@@ -424,6 +434,7 @@ int command_writeusermem(int number_of_arguments, char **arguments)
 	return 0;
 }
 
+
 int command_readusermem(int number_of_arguments, char **arguments)
 {
 	//deal with the kernel page directory
@@ -463,6 +474,7 @@ int command_readusermem(int number_of_arguments, char **arguments)
 	return 0;
 
 }
+
 
 int command_readuserblock(int number_of_arguments, char **arguments)
 {
@@ -664,12 +676,12 @@ struct Env * CreateEnv(int number_of_arguments, char **arguments)
 		}
 		assert(percent_WS_pages_to_remove >= 0 && percent_WS_pages_to_remove <= 100);
 
-		//assert(PRIRRSchedPriority >= 0 && PRIRRSchedPriority < num_of_ready_queues);
-		//		if (BSDSchedNiceVal != -100)
-		//		{
-		//			cprintf("nice value = %d\n", BSDSchedNiceVal);
-		//			assert(BSDSchedNiceVal >= -20 && BSDSchedNiceVal <= 20);
-		//		}
+			//assert(PRIRRSchedPriority >= 0 && PRIRRSchedPriority < num_of_ready_queues);
+//		if (BSDSchedNiceVal != -100)
+//		{
+//			cprintf("nice value = %d\n", BSDSchedNiceVal);
+//			assert(BSDSchedNiceVal >= -20 && BSDSchedNiceVal <= 20);
+//		}
 	}
 #else
 	{
@@ -835,6 +847,13 @@ int command_set_page_rep_ModifiedCLOCK(int number_of_arguments, char **arguments
 	return 0;
 }
 
+int command_set_page_rep_OPTIMAL(int number_of_arguments, char **arguments)
+{
+	setPageReplacmentAlgorithmOPTIMAL();
+	cprintf("Page replacement algorithm is now OPTIMAL\n");
+	return 0;
+}
+
 /*2018*///BEGIN======================================================
 int command_sch_RR(int number_of_arguments, char **arguments)
 {
@@ -874,12 +893,27 @@ int command_sch_BSD(int number_of_arguments, char **arguments)
 	cprintf("\n");
 	return 0;
 }
+
+int command_sch_PRIRR(int number_of_arguments, char **arguments)
+{
+	uint8 numOfLevels = strtol(arguments[1], NULL, 10);
+	uint8 quantum = strtol(arguments[2], NULL, 10);
+	uint32 starvThresh = strtol(arguments[3], NULL, 10);
+
+	sched_init_PRIRR(numOfLevels, quantum, starvThresh);
+
+	cprintf("Scheduler is now set to PRIORITY RR with %d priorities, quantum = %d and starvation thresh %d\n", numOfLevels, quantum, starvThresh);
+	cprintf("\n");
+	return 0;
+}
 int command_set_starve_thresh(int number_of_arguments, char **arguments)
 {
 	uint32 starvationThresh = strtol(arguments[1], NULL, 10);
 	sched_set_starv_thresh(starvationThresh);
 	return 0;
 }
+//*********************************************************************************//
+
 int command_set_priority(int number_of_arguments, char **arguments)
 {
 	int32 envId = strtol(arguments[1],NULL, 10);
@@ -944,6 +978,8 @@ int command_print_page_rep(int number_of_arguments, char **arguments)
 		cprintf("Page replacement algorithm is FIFO\n");
 	else if (isPageReplacmentAlgorithmModifiedCLOCK())
 		cprintf("Page replacement algorithm is Modified CLOCK\n");
+	else if (isPageReplacmentAlgorithmOPTIMAL())
+		cprintf("Page replacement algorithm is OPTIMAL\n");
 	else if (isPageReplacmentAlgorithmNchanceCLOCK())
 	{
 		cprintf("Page replacement algorithm is Nth Chance CLOCK ");
@@ -959,44 +995,60 @@ int command_print_page_rep(int number_of_arguments, char **arguments)
 
 int command_set_uheap_plac_FIRSTFIT(int number_of_arguments, char **arguments)
 {
-	setUHeapPlacementStrategyFIRSTFIT();
+	set_uheap_strategy(UHP_PLACE_FIRSTFIT);
 	cprintf("User Heap placement strategy is now FIRST FIT\n");
 	return 0;
 }
 
 int command_set_uheap_plac_BESTFIT(int number_of_arguments, char **arguments)
 {
-	setUHeapPlacementStrategyBESTFIT();
+	set_uheap_strategy(UHP_PLACE_BESTFIT);
 	cprintf("User Heap placement strategy is now BEST FIT\n");
 	return 0;
 }
 
 int command_set_uheap_plac_NEXTFIT(int number_of_arguments, char **arguments)
 {
-	setUHeapPlacementStrategyNEXTFIT();
+	set_uheap_strategy(UHP_PLACE_NEXTFIT);
 	cprintf("User Heap placement strategy is now NEXT FIT\n");
 	return 0;
 }
 int command_set_uheap_plac_WORSTFIT(int number_of_arguments, char **arguments)
 {
-	setUHeapPlacementStrategyWORSTFIT();
+	set_uheap_strategy(UHP_PLACE_WORSTFIT);
 	cprintf("User Heap placement strategy is now WORST FIT\n");
+	return 0;
+}
+int command_set_uheap_plac_CUSTOMFIT(int number_of_arguments, char **arguments)
+{
+	set_uheap_strategy(UHP_PLACE_CUSTOMFIT);
+	cprintf("User Heap placement strategy is now CUSTOM FIT\n");
 	return 0;
 }
 
 int command_print_uheap_plac(int number_of_arguments, char **arguments)
 {
-	if (isUHeapPlacementStrategyFIRSTFIT())
+	uint32 strategy = get_uheap_strategy();
+	switch (strategy)
+	{
+	case UHP_PLACE_FIRSTFIT:
 		cprintf("User Heap placement strategy is FIRST FIT\n");
-	else if (isUHeapPlacementStrategyBESTFIT())
-		cprintf("User Heap placement strategy is BEST FIT\n");
-	else if (isUHeapPlacementStrategyNEXTFIT())
+		break;
+	case UHP_PLACE_NEXTFIT:
 		cprintf("User Heap placement strategy is NEXT FIT\n");
-	else if (isUHeapPlacementStrategyWORSTFIT())
+		break;
+	case UHP_PLACE_BESTFIT:
+		cprintf("User Heap placement strategy is BEST FIT\n");
+		break;
+	case UHP_PLACE_WORSTFIT:
 		cprintf("User Heap placement strategy is WORST FIT\n");
-	else
+		break;
+	case UHP_PLACE_CUSTOMFIT:
+		cprintf("User Heap placement strategy is CUSTOM FIT\n");
+		break;
+	default:
 		cprintf("User Heap placement strategy is UNDEFINED\n");
-
+	}
 	return 0;
 }
 
@@ -1006,52 +1058,69 @@ int command_print_uheap_plac(int number_of_arguments, char **arguments)
 
 int command_set_kheap_plac_CONTALLOC(int number_of_arguments, char **arguments)
 {
-	setKHeapPlacementStrategyCONTALLOC();
+	set_kheap_strategy(KHP_PLACE_CONTALLOC);
 	cprintf("Kernel Heap placement strategy is now FIRST FIT\n");
 	return 0;
 }
 
 int command_set_kheap_plac_FIRSTFIT(int number_of_arguments, char **arguments)
 {
-	setKHeapPlacementStrategyFIRSTFIT();
+	set_kheap_strategy(KHP_PLACE_FIRSTFIT);
 	cprintf("Kernel Heap placement strategy is now FIRST FIT\n");
 	return 0;
 }
 
 int command_set_kheap_plac_BESTFIT(int number_of_arguments, char **arguments)
 {
-	setKHeapPlacementStrategyBESTFIT();
+	set_kheap_strategy(KHP_PLACE_BESTFIT);
 	cprintf("Kernel Heap placement strategy is now BEST FIT\n");
 	return 0;
 }
 
 int command_set_kheap_plac_NEXTFIT(int number_of_arguments, char **arguments)
 {
-	setKHeapPlacementStrategyNEXTFIT();
+	set_kheap_strategy(KHP_PLACE_NEXTFIT);
 	cprintf("Kernel Heap placement strategy is now NEXT FIT\n");
 	return 0;
 }
 int command_set_kheap_plac_WORSTFIT(int number_of_arguments, char **arguments)
 {
-	setKHeapPlacementStrategyWORSTFIT();
+	set_kheap_strategy(KHP_PLACE_WORSTFIT);
 	cprintf("Kernel Heap placement strategy is now WORST FIT\n");
 	return 0;
 }
-
+int command_set_kheap_plac_CUSTOMFIT(int number_of_arguments, char **arguments)
+{
+	set_kheap_strategy(KHP_PLACE_CUSTOMFIT);
+	cprintf("Kernel Heap placement strategy is now CUSTOM FIT\n");
+	return 0;
+}
 int command_print_kheap_plac(int number_of_arguments, char **arguments)
 {
-	if (isKHeapPlacementStrategyCONTALLOC())
+	uint32 strategy = get_kheap_strategy();
+	switch (strategy)
+	{
+	case KHP_PLACE_CONTALLOC:
 		cprintf("Kernel Heap placement strategy is CONTINUOUS ALLOCATION\n");
-	else if (isKHeapPlacementStrategyFIRSTFIT())
+		break;
+	case KHP_PLACE_FIRSTFIT:
 		cprintf("Kernel Heap placement strategy is FIRST FIT\n");
-	else if (isKHeapPlacementStrategyBESTFIT())
-		cprintf("Kernel Heap placement strategy is BEST FIT\n");
-	else if (isKHeapPlacementStrategyNEXTFIT())
+		break;
+	case KHP_PLACE_NEXTFIT:
 		cprintf("Kernel Heap placement strategy is NEXT FIT\n");
-	else if (isKHeapPlacementStrategyWORSTFIT())
+		break;
+	case KHP_PLACE_BESTFIT:
+		cprintf("Kernel Heap placement strategy is BEST FIT\n");
+		break;
+	case KHP_PLACE_WORSTFIT:
 		cprintf("Kernel Heap placement strategy is WORST FIT\n");
-	else
+		break;
+	case KHP_PLACE_CUSTOMFIT:
+		cprintf("Kernel Heap placement strategy is CUSTOM FIT\n");
+		break;
+	default:
 		cprintf("Kernel Heap placement strategy is UNDEFINED\n");
+	}
 
 	return 0;
 }
@@ -1146,4 +1215,12 @@ int command_get_modified_buffer_length(int number_of_arguments, char **arguments
 int command_tst(int number_of_arguments, char **arguments)
 {
 	return tst_handler(number_of_arguments, arguments);
+}
+
+// *************** This clear screen feature is implemented by *************
+// ********* Abd-Alrahman Zedan From Team Frozen-Bytes - FCIS'24-25 ********
+int command_cls(int number_of_arguments, char **arguments)
+{
+	clear_screen_buffer();
+	return 0;
 }

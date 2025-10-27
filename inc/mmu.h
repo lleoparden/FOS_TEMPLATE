@@ -60,13 +60,14 @@
 #define PERM_PRESENT	0x001	// Present
 #define PERM_WRITEABLE	0x002	// Writeable
 #define PERM_USER		0x004	// User
-#define PTE_PWT		0x008	// Write-Through
-#define PTE_PCD		0x010	// Cache-Disable
+#define PTE_PWT			0x008	// Write-Through
+#define PTE_PCD			0x010	// Cache-Disable
 #define PERM_USED		0x020	// Accessed
-#define PERM_MODIFIED		0x040	// Dirty
-#define PTE_PS		0x080	// Page Size
-#define PTE_MBZ		0x180	// Bits must be zero
-#define PERM_BUFFERED 0x200 //Page it buffered
+#define PERM_MODIFIED	0x040	// Dirty
+#define PTE_PS			0x080	// Page Size
+#define PTE_MBZ			0x180	// Bits must be zero
+#define PERM_BUFFERED 	0x200 	//Page is buffered
+#define PERM_UHPAGE 	0x400 	//Page in User Heap
 
 // The PERM_AVAILABLE bits aren't used by the kernel or interpreted by the
 // hardware, so user processes are allowed to set them arbitrarily.

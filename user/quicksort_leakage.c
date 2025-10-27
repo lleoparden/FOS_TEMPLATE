@@ -48,7 +48,6 @@ void _main(void)
 		}
 		//2012: unlock
 		sys_unlock_cons();
-		//sys_unlock_cons();
 
 		Elements = malloc(sizeof(int) * NumOfElements) ;
 
@@ -70,21 +69,18 @@ void _main(void)
 
 		QuickSort(Elements, NumOfElements);
 
-		//sys_lock_cons();
 		sys_lock_cons();
 		{
 			cprintf("Sorting is Finished!!!!it'll be checked now....\n") ;
 			//		PrintElements(Elements, NumOfElements);
 		}
 		sys_unlock_cons();
-		//sys_unlock_cons();
 
 		uint32 Sorted = CheckSorted(Elements, NumOfElements);
 
 		if(Sorted == 0) panic("The array is NOT sorted correctly") ;
 		else
 		{
-			//			sys_lock_cons();
 			sys_lock_cons();
 			{
 				cprintf("===============================================\n") ;
@@ -92,12 +88,8 @@ void _main(void)
 				cprintf("===============================================\n\n") ;
 			}
 			sys_unlock_cons();
-			//			sys_unlock_cons();
-
-
 		}
 
-		//		sys_lock_cons();
 		sys_lock_cons();
 		{
 			Chose = 0 ;
@@ -111,7 +103,6 @@ void _main(void)
 			}
 		}
 		sys_unlock_cons();
-		//		sys_unlock_cons();
 
 	} while (Chose == 'y');
 
@@ -200,7 +191,7 @@ void InitializeSemiRandom(int *Elements, int NumOfElements)
 	int i ;
 	int Repetition = NumOfElements / 3 ;
 	if (Repetition == 0)
-		Repetition = 3;
+			Repetition = 3;
 	for (i = 0 ; i < NumOfElements ; i++)
 	{
 		Elements[i] = i % Repetition ;

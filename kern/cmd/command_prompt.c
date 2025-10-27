@@ -8,13 +8,17 @@
 #include <kern/cpu/sched.h>
 #include "commands.h"
 
-extern bool autograde ;
+extern bool __autograde__ ;
 extern void command_prompt_readline(const char *prompt, char* buf);
 void run_command_prompt()
 {
-	if (autograde)
+	if (__autograde__)
 	{
-		autograde = 0;
+		char cmdU1_2[BUFLEN] = "tst priorityRR 0";	//
+		char cmdU2_2[BUFLEN] = "tst priorityRR 1";	//
+		char cmdU3_2[BUFLEN] = "tst priorityRR 2";	//
+//		execute_command(cmdU3_2);
+		__autograde__ = 0;
 	}
 	/*2024*/
 	LIST_INIT(&foundCommands);
@@ -26,6 +30,9 @@ void run_command_prompt()
 	{
 		//readline("FOS> ", command_line);
 
+		// ********** This DosKey supported readline function is a combined implementation from **********
+		// ********** 		Mohamed Raafat & Mohamed Yousry, 3rd year students, FCIS, 2017		**********
+		// ********** 				Combined, edited and modified by TA\Ghada Hamed				**********
 		memset(command_line, 0, sizeof(command_line));
 		command_prompt_readline("FOS> ", command_line);
 
@@ -64,11 +71,17 @@ void get_into_prompt()
 
 		//Read current ESP
 		uint32 cur_esp = read_esp();
+		//cprintf("*** KERNEL SP: BEFORE RESIT = %x - ", cur_esp);
+
+//		//Make sure it's in the correct stack (i.e. KERN STACK below KERN_BASE)
+//		assert(cur_esp < SCHD_KERN_STACK_TOP && cur_esp >= SCHD_KERN_STACK_TOP - KERNEL_STACK_SIZE);
 
 		//Reset ESP to the beginning of the SCHED KERNEL STACK of this CPU before getting into the cmd prmpt
 		uint32 cpuStackTop = (uint32)c->stack + KERNEL_STACK_SIZE;
 		uint32 cpuStackBottom = (uint32)c->stack + PAGE_SIZE/*GUARD Page*/;
 		write_esp(cpuStackTop);
+
+		//cprintf("AFTER RESIT = %x ***\n", read_esp());
 
 		//Clear the stack content to avoid any garbage data on it when getting back into prompt
 		if (cur_esp < cpuStackTop && cur_esp >= cpuStackBottom)

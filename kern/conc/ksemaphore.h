@@ -2,16 +2,15 @@
 #ifndef KERN_CONC_KSEMAPHORE_H_
 #define KERN_CONC_KSEMAPHORE_H_
 
-#include <kern/conc/spinlock.h>
 #include <kern/conc/channel.h>
 #include <kern/cpu/sched_helpers.h>
+#include "kspinlock.h"
 
 struct ksemaphore
 {
 	int count;       			// Semaphore value
-	struct spinlock lk; 		// spinlock protecting this count
+	struct kspinlock lk; 		// spinlock protecting this count
 	struct Channel chan;		// channel to hold all blocked processes on this semaphore
-
 	// For debugging:
 	char name[NAMELEN];        	// Name of semaphore.
 };

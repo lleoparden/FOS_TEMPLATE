@@ -1,12 +1,13 @@
 #ifndef FOS_KERN_FILE_MAN_H
 #define FOS_KERN_FILE_MAN_H
+
 #ifndef FOS_KERNEL
 # error "This is a FOS kernel header; user programs should not #include it"
 #endif
 
 #include <inc/x86.h>
 #include <inc/environment_definitions.h>
-#include <kern/conc/spinlock.h>
+#include "../conc/kspinlock.h"
 
 #define SECTOR_SIZE 512
 #define PAGE_FILE_START_SECTOR ( (20<<20) /SECTOR_SIZE)  //start sector number of Page file in H.D.
@@ -20,7 +21,7 @@ struct FrameInfo* disk_frames_info;
 struct
 {
 	struct FrameInfo_List disk_free_frame_list;	// Free list of disk frames_info
-	struct spinlock dfllock;					// Lock to protect the disk frame info lists
+	struct kspinlock dfllock;					// Lock to protect the disk frame info lists
 } DiskFrameLists;
 
 ///=============================================================================================

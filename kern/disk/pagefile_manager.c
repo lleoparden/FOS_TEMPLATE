@@ -86,7 +86,7 @@ void initialize_disk_page_file()
 		LIST_INSERT_HEAD(&DiskFrameLists.disk_free_frame_list, &disk_frames_info[i]);
 	}
 
-	init_spinlock(&DiskFrameLists.dfllock, "Disk FrameList Lock");
+	init_kspinlock(&DiskFrameLists.dfllock, "Disk FrameList Lock");
 }
 
 //
@@ -112,7 +112,7 @@ static inline uint32 to_disk_frame_number(struct FrameInfo *ptr_frame_info)
 int allocate_disk_frame(uint32 *dfn)
 {
 	int ret = 0;
-	acquire_spinlock(&DiskFrameLists.dfllock);
+	acquire_kspinlock(&DiskFrameLists.dfllock);
 	{
 		// Fill this function in
 		struct FrameInfo *ptr_frame_info = LIST_FIRST(&DiskFrameLists.disk_free_frame_list);
@@ -127,7 +127,7 @@ int allocate_disk_frame(uint32 *dfn)
 			*dfn = to_disk_frame_number(ptr_frame_info);
 		}
 	}
-	release_spinlock(&DiskFrameLists.dfllock);
+	release_kspinlock(&DiskFrameLists.dfllock);
 
 	return ret;
 }
@@ -139,11 +139,11 @@ inline void free_disk_frame(uint32 dfn)
 {
 	// Fill this function in
 	if(dfn == 0) return;
-	acquire_spinlock(&DiskFrameLists.dfllock);
+	acquire_kspinlock(&DiskFrameLists.dfllock);
 	{
 		LIST_INSERT_HEAD(&DiskFrameLists.disk_free_frame_list, &disk_frames_info[dfn]);
 	}
-	release_spinlock(&DiskFrameLists.dfllock);
+	release_kspinlock(&DiskFrameLists.dfllock);
 }
 
 int get_disk_page_table(uint32 *ptr_disk_page_directory, const uint32 virtual_address, int create, uint32 **ptr_disk_page_table)
@@ -360,7 +360,7 @@ int pf_update_env_page(struct Env* ptr_env, uint32 virtual_address, struct Frame
 		// Return it to its original status
 		modified_page_frame_info->references -= 1;
 
-		//cprintf("[%s] updating page\n",ptr_env->prog_name);
+//		cprintf("[%s] updating page at va %x\n",ptr_env->prog_name, virtual_address);
 	}
 #else
 	{
@@ -603,7 +603,7 @@ int pf_calculate_allocated_pages(struct Env* ptr_env)
 int pf_calculate_free_frames()
 {
 	uint32 totalFreeDiskFrames ;
-	acquire_spinlock(&DiskFrameLists.dfllock);
+	acquire_kspinlock(&DiskFrameLists.dfllock);
 	{
 		/*2023: UPDATE beased on suggestion from T112 2023.Term1*/
 		totalFreeDiskFrames = LIST_SIZE(&DiskFrameLists.disk_free_frame_list);
@@ -612,7 +612,7 @@ int pf_calculate_free_frames()
 		//		totalFreeDiskFrames++ ;
 		//	}
 	}
-	release_spinlock(&DiskFrameLists.dfllock);
+	release_kspinlock(&DiskFrameLists.dfllock);
 	return totalFreeDiskFrames;
 
 }

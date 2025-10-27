@@ -95,51 +95,11 @@ OBJDIRS :=
 
 # Make sure that 'all' is the first target
 all:
-#[TODO: Need Better Solution]
+#[TODO - DONE el7 :): Need Better Solution]
 # TEMPORARILY MODIFY ALL .c FILES INSIDE "kern/*/" SUBDIR TO FORCE BUILDING THEM EACH TIME (el7 :))
 # OTHERWISE, ANY CHANGE IN ANY .h FILE IN THE ENTIRE CODE WILL NOT REFLECT ON ANY OF THESE "kern/*/*" FILES
-# touch -m inc/memlayout.h
-# touch -m inc/environment_definitions.h
-# touch -m inc/semaphore.h
-# touch -m kern/cons/console.c
-# touch -m kern/cons/printf.c
-# touch -m kern/cmd/command_prompt.c
-# touch -m kern/cmd/commands.c
-# touch -m kern/disk/pagefile_manager.c
-# touch -m kern/cpu/context_switch.S
-# touch -m kern/cpu/kclock.c
-# touch -m kern/cpu/sched_helpers.c
-# touch -m kern/cpu/sched.c
-# touch -m kern/cpu/picirq.c
-# touch -m kern/cpu/cpu.c
-# touch -m kern/mem/boot_memory_manager.c
-# touch -m kern/mem/memory_manager.c
-# touch -m kern/mem/shared_memory_manager.c
-# touch -m kern/mem/kheap.c
-# touch -m kern/mem/paging_helpers.c
-# touch -m kern/mem/working_set_manager.c
-# touch -m kern/mem/chunk_operations.c
-# touch -m kern/proc/user_environment.c
-# touch -m kern/proc/priority_manager.c
-# touch -m kern/proc/user_programs.c
-# touch -m kern/trap/trap.c
-# touch -m kern/trap/trapentry.S
-# touch -m kern/trap/syscall.c
-# touch -m kern/trap/kdebug.c
-# touch -m kern/trap/fault_handler.c
-# touch -m kern/conc/spinlock.c
-# touch -m kern/conc/sleeplock.c
-# touch -m kern/conc/channel.c
-# touch -m kern/conc/ksemaphore.c
-# touch -m kern/tests/tst_handler.c
-# touch -m kern/tests/test_dynamic_allocator.c
-# touch -m kern/tests/test_working_set.c
-# touch -m kern/tests/test_priority.c
-# touch -m kern/tests/test_kheap.c
-# touch -m kern/tests/test_commands.c
-# touch -m kern/tests/test_scheduler.c
-# touch -m kern/tests/utilities.c
-
+# SOL: AVOID INCREMENTAL BUILD BY CLEANING THE PROJECT EVERY TIME
+# PROJECT PROPERTIES => C/C++ BUILD => BAHAVIOR
 
 # Eliminate default suffix rules
 .SUFFIXES:

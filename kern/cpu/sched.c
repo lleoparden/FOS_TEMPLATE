@@ -43,7 +43,7 @@ void sched_init()
 	mycpu()->scheduler_status = SCH_STOPPED;
 
 	/*2024: initialize lock to protect these Qs in MULTI-CORE case only*/
-	init_spinlock(&ProcessQueues.qlock, "process queues lock");
+	init_kspinlock(&ProcessQueues.qlock, "process queues lock");
 }
 
 //=========================
@@ -80,29 +80,16 @@ fos_scheduler(void)
 
 		// Check ready queue(s) looking for process to run.
 		//cprintf("\n[FOS_SCHEDULER] acquire: lock status before acquire = %d\n", qlock.locked);
-		acquire_spinlock(&(ProcessQueues.qlock));  //lock: to protect ready & blocked Qs in multi-CPU
+		acquire_kspinlock(&(ProcessQueues.qlock));  //lock: to protect ready & blocked Qs in multi-CPU
 		//cprintf("ACQUIRED\n");
 		do
 		{
 			//Get next env according to the current scheduler
 			next_env = sched_next[scheduler_method]() ;
 
-			//temporarily set the curenv by the next env JUST for checking the scheduler
-			//Then: reset it again
-			struct Env* old_curenv = get_cpu_proc();
-			set_cpu_proc(next_env) ;
-			chk2(next_env) ;
-			set_cpu_proc(old_curenv) ;
-
-			//sched_print_all();
-
 			if(next_env != NULL)
 			{
 				//cprintf("\nScheduler select program '%s' [%d]... clock counter = %d\n", next_env->prog_name, next_env->env_id, kclock_read_cnt0());
-
-				/*2024: Replaced by context_switch()*/
-				//env_run(next_env);
-
 				// Switch to chosen process. It is the process's job to release qlock
 				// and then reacquire it before jumping back to us.
 				set_cpu_proc(next_env);
@@ -114,14 +101,17 @@ fos_scheduler(void)
 				//Context switch to it
 				context_switch(&(c->scheduler), next_env->context);
 
-				//ensure that the scheduler is invoked while interrupt is disabled
-				if (read_eflags() & FL_IF)
-					panic("fos_scheduler: invoked while the interrupt is enabled!");
+				//ensure that the qlock is still held after returning from the process
+				if(!holding_kspinlock(&ProcessQueues.qlock))
+				{
+					printcallstack(&ProcessQueues.qlock);
+					panic("fos_scheduler(): qlock is either not held or held by another CPU!");
+				}
 
 				//Stop the clock now till finding a next proc (if any).
 				//This is to avoid clock interrupt inside the scheduler after sti() of the outer loop
 				kclock_stop();
-				//cprintf("\n[IEN = %d] clock is stopped! returned to scheduler after context_switch. curenv = %d\n", (read_eflags() & FL_IF) == 0? 0:1, curenv == NULL? 0 : curenv->env_id);
+				//cprintf("\n[IEN = %d] clock is stopped! returned to scheduler after context_switch. curenv = %d\n", (read_eflags() & FL_IF) == 0? 0:1, c->proc == NULL? 0 : c->proc->env_id);
 
 				// Process is done running for now. It should have changed its p->status before coming back.
 				//If no process on CPU, switch to the kernel
@@ -136,6 +126,7 @@ fos_scheduler(void)
 				{
 					//					cprintf("scheduler: process %d is BLOCKED/EXITED\n", c->proc->env_id);
 					switchkvm();
+					struct Env* __e__ = c->proc;
 					set_cpu_proc(NULL);
 				}
 			}
@@ -151,9 +142,8 @@ fos_scheduler(void)
 				break;
 			}
 		}
-		release_spinlock(&ProcessQueues.qlock);  //release lock: to protect ready & blocked Qs in multi-CPU
+		release_kspinlock(&ProcessQueues.qlock);  //release lock: to protect ready & blocked Qs in multi-CPU
 		//cprintf("\n[FOS_SCHEDULER] release: lock status after = %d\n", qlock.locked);
-
 	} while (is_any_blocked > 0);
 
 	/*2015*///No more envs... curenv doesn't exist any more! return back to command prompt
@@ -169,16 +159,12 @@ fos_scheduler(void)
 //=============================
 void sched_init_RR(uint8 quantum)
 {
-
 	// Create 1 ready queue for the RR
 	num_of_ready_queues = 1;
 #if USE_KHEAP
 	sched_delete_ready_queues();
 	ProcessQueues.env_ready_queues = kmalloc(sizeof(struct Env_Queue));
-	//cprintf("sizeof(struct Env_Queue) = %x\n", sizeof(struct Env_Queue));
 	quantums = kmalloc(num_of_ready_queues * sizeof(uint8)) ;
-	//cprintf("num_of_ready_queues * sizeof(uint8) = %x\n", num_of_ready_queues * sizeof(uint8));
-
 #endif
 	quantums[0] = quantum;
 	kclock_set_quantum(quantums[0]);
@@ -198,13 +184,6 @@ void sched_init_RR(uint8 quantum)
 //===============================
 void sched_init_MLFQ(uint8 numOfLevels, uint8 *quantumOfEachLevel)
 {
-	//=========================================
-	//DON'T CHANGE THESE LINES=================
-	sched_delete_ready_queues();
-	//=========================================
-	//=========================================
-	//Your code is here
-	//Comment the following line
 	panic("Not implemented yet");
 
 
@@ -224,8 +203,6 @@ void sched_init_MLFQ(uint8 numOfLevels, uint8 *quantumOfEachLevel)
 //===============================
 void sched_init_BSD(uint8 numOfLevels, uint8 quantum)
 {
-	//Your code is here
-	//Comment the following line
 	panic("Not implemented yet");
 
 
@@ -244,12 +221,15 @@ void sched_init_BSD(uint8 numOfLevels, uint8 quantum)
 //======================================
 void sched_init_PRIRR(uint8 numOfPriorities, uint8 quantum, uint32 starvThresh)
 {
-	//Your code is here
-	//Comment the following line
-	panic("Not implemented yet");
+	{
+		//TODO: [PROJECT'25.IM#4] CPU SCHEDULING - #2 sched_init_PRIRR
+		//Your code is here
+		//Comment the following line
+		panic("sched_init_PRIRR() is not implemented yet...!!");
 
 
 
+	}
 	//=========================================
 	//DON'T CHANGE THESE LINES=================
 	uint16 cnt0 = kclock_read_cnt0_latch() ; //read after write to ensure it's set to the desired value
@@ -271,7 +251,7 @@ struct Env* fos_scheduler_RR()
 	// It's OK to choose the previously running env if no other env
 	// is runnable.
 	/*To protect process Qs (or info of current process) in multi-CPU************************/
-	if(!holding_spinlock(&ProcessQueues.qlock))
+	if(!holding_kspinlock(&ProcessQueues.qlock))
 		panic("fos_scheduler_RR: q.lock is not held by this CPU while it's expected to be.");
 	/****************************************************************************************/
 	struct Env *next_env = NULL;
@@ -279,6 +259,7 @@ struct Env* fos_scheduler_RR()
 	//If the curenv is still exist, then insert it again in the ready queue
 	if (cur_env != NULL)
 	{
+		//cprintf("RR: [%d] with status %d will be added to ready Q", cur_env->env_id, cur_env->env_status);
 		enqueue(&(ProcessQueues.env_ready_queues[0]), cur_env);
 	}
 
@@ -302,14 +283,10 @@ struct Env* fos_scheduler_MLFQ()
 	//Apply the MLFQ with the specified levels to pick up the next environment
 	//Note: the "curenv" (if exist) should be placed in its correct queue
 	/*To protect process Qs (or info of current process) in multi-CPU************************/
-	if(!holding_spinlock(&ProcessQueues.qlock))
+	if(!holding_kspinlock(&ProcessQueues.qlock))
 		panic("fos_scheduler_MLFQ: q.lock is not held by this CPU while it's expected to be.");
 	/****************************************************************************************/
-
-	//Your code is here
-	//Comment the following line
 	panic("Not implemented yet");
-
 }
 
 //=========================
@@ -318,27 +295,25 @@ struct Env* fos_scheduler_MLFQ()
 struct Env* fos_scheduler_BSD()
 {
 	/*To protect process Qs (or info of current process) in multi-CPU************************/
-	if(!holding_spinlock(&ProcessQueues.qlock))
+	if(!holding_kspinlock(&ProcessQueues.qlock))
 		panic("fos_scheduler_BSD: q.lock is not held by this CPU while it's expected to be.");
 	/****************************************************************************************/
-
-	//Your code is here
-	//Comment the following line
 	panic("Not implemented yet");
-
 }
+
 //=============================
 // [10] PRIORITY RR Scheduler:
 //=============================
 struct Env* fos_scheduler_PRIRR()
 {
 	/*To protect process Qs (or info of current process) in multi-CPU************************/
-	if(!holding_spinlock(&ProcessQueues.qlock))
+	if(!holding_kspinlock(&ProcessQueues.qlock))
 		panic("fos_scheduler_PRIRR: q.lock is not held by this CPU while it's expected to be.");
 	/****************************************************************************************/
+	//TODO: [PROJECT'25.IM#4] CPU SCHEDULING - #3 fos_scheduler_PRIRR
 	//Your code is here
 	//Comment the following line
-	panic("Not implemented yet");
+	panic("fos_scheduler_PRIRR() is not implemented yet...!!");
 }
 
 //========================================
@@ -349,18 +324,25 @@ void clock_interrupt_handler(struct Trapframe* tf)
 {
 	if (isSchedMethodPRIRR())
 	{
+		//TODO: [PROJECT'25.IM#4] CPU SCHEDULING - #4 clock_interrupt_handler
 		//Your code is here
 		//Comment the following line
-		panic("Not implemented yet");
+		panic("clock_interrupt_handler() is not implemented yet...!!");
+
+
+
 	}
-
-
 
 	/********DON'T CHANGE THESE LINES***********/
 	ticks++ ;
 	struct Env* p = get_cpu_proc();
 	if (p == NULL)
 	{
+//		cprintf("\n??????????????????? p == NULL ?????????????????????\n");
+//		cprintf("IRQ0 mask = %d\n", irq_get_mask(0));
+//		cprintf("caller IEN = %d, EIP = %x\n", tf->tf_eflags & FL_IF, tf->tf_eip);
+//		cprintf("scheduler status = %d\n", mycpu()->scheduler_status) ;
+		//panic("clock_interrupt_handler: no running process at the cpu! unexpected clock interrupt in the kernel!");
 	}
 	else
 	{
@@ -382,8 +364,9 @@ void clock_interrupt_handler(struct Trapframe* tf)
 //===================================================================
 void update_WS_time_stamps()
 {
-	struct Env *curr_env_ptr = get_cpu_proc();
+	//TODO: [PROJECT'25.IM#6] FAULT HANDLER II - #1 update_WS_time_stamps
+	//Your code is here
+	//Comment the following line
+	panic("update_WS_time_stamps is not implemented yet...!!");
 
-	panic("Not Implemented");
 }
-

@@ -17,6 +17,10 @@
 #include <kern/mem/memory_manager.h>
 
 
+/*2024: removed. we use lidt() instead*/
+//struct Pseudodesc idt_pd = {
+//		sizeof(idt) - 1, (uint32) idt
+//};
 extern  void (*PAGE_FAULT)();
 extern  void (*SYSCALL_HANDLER)();
 extern  void (*DBL_FAULT)();
@@ -234,6 +238,9 @@ void irq_dispatch(struct Trapframe *tf)
 
 static void trap_dispatch(struct Trapframe *tf)
 {
+	// Handle processor exceptions.
+	// LAB 3: Your code here.
+
 	if(tf->tf_trapno == T_PGFLT)
 	{
 		//2016: Bypass the faulted instruction [used for some tests in which we need to resume the execution after an intended page fault]
@@ -330,12 +337,18 @@ void trap(struct Trapframe *tf)
 
 	if ((tf->tf_cs & 3) == 3)
 	{
+		userTrap = 1;
 		assert(cur_env && cur_env->env_status == ENV_RUNNING);	//environment should be exist & run
 		//cprintf("curenv->env_tf @ %x, tf param @ %x\n", curenv->env_tf , tf);
-		assert(cur_env->env_tf == tf);	//tf should be placed in the kernel stack of this process (@e->env_tf)
-		userTrap = 1;
+		//assert(cur_env->env_tf == tf);	//tf should be placed in the kernel stack of this process (@e->env_tf)
+		if (cur_env->env_tf != tf)
+		{
+			cprintf("\n[%s - %d] trap #%d - %s (cr2 = %x) tf va = %x - eip = %x - IEN = %d\n", userTrap == 1? "USER" : "KERNEL", userTrap == 1? cur_env->env_id : 0, tf->tf_trapno, trapname(tf->tf_trapno), rcr2(), tf, tf->tf_eip, (read_eflags() & FL_IF) == 0? 0 : 1);
+			panic("USER TRAP [%d:%s]: unexpected trapframe! cur_env->env_tf (%x) != tf (%x). Kernel stack [%x, %x)",
+					cur_env->env_id, cur_env->prog_name, cur_env->env_tf , tf, cur_env->kstack, cur_env->kstack + KERNEL_STACK_SIZE);
+		}
 	}
-	//	cprintf("\n[%s - %d] trap #%d - %s  @va = %x - eip = %x - IEN = %d\n", userTrap == 1? "USER" : "KERNEL", userTrap == 1? curenv->env_id : 0, tf->tf_trapno, trapname(tf->tf_trapno), tf, tf->tf_eip, (read_eflags() & FL_IF) == 0? 0 : 1);
+	//cprintf("\n[%s - %d] trap #%d - %s  @va = %x - eip = %x - IEN = %d\n", userTrap == 1? "USER" : "KERNEL", userTrap == 1? cur_env->env_id : 0, tf->tf_trapno, trapname(tf->tf_trapno), tf, tf->tf_eip, (read_eflags() & FL_IF) == 0? 0 : 1);
 	//	if (tf->tf_trapno == T_SYSCALL)
 	//	{
 	//		cprintf("System Call #%d\n", tf->tf_regs.reg_eax);
@@ -361,7 +374,7 @@ void trap(struct Trapframe *tf)
 
 	//[5] Resume the clock
 	kclock_resume();
-	//	cprintf("\nclock is resumed with counter = %d.\n", kclock_read_cnt0_latch());
+	//cprintf("\nclock is resumed with counter = %d.\n", kclock_read_cnt0_latch());
 	//	cprintf("[tf] tf @%x - tf.cs = %x - tf.eip = %x - tf.eax = %d\n", tf, tf->tf_cs,tf->tf_eip, tf->tf_regs.reg_eax );
 }
 

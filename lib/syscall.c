@@ -21,23 +21,23 @@ syscall(int num, uint32 a1, uint32 a2, uint32 a3, uint32 a4, uint32 a5)
 	// memory locations.
 
 	asm volatile("int %1\n"
-		: "=a" (ret)
-		: "i" (T_SYSCALL),
-		  "a" (num),
-		  "d" (a1),
-		  "c" (a2),
-		  "b" (a3),
-		  "D" (a4),
-		  "S" (a5)
-		: "cc", "memory");
+			: "=a" (ret)
+			  : "i" (T_SYSCALL),
+				"a" (num),
+				"d" (a1),
+				"c" (a2),
+				"b" (a3),
+				"D" (a4),
+				"S" (a5)
+				: "cc", "memory");
 
 	return ret;
 }
 
 void
-sys_cputs(const char *s, uint32 len, uint8 printProgName)
+sys_cputs(const char *s, uint32 len, uint8 printProgName, int color)
 {
-	syscall(SYS_cputs, (uint32) s, len, (uint32)printProgName, 0, 0);
+	syscall(SYS_cputs, (uint32) s, len, (uint32)printProgName, color, 0);
 }
 
 int
@@ -65,9 +65,9 @@ int __sys_map_frame(int32 srcenv, void *srcva, int32 dstenv, void *dstva, int pe
 	return syscall(SYS_map_frame, srcenv, (uint32) srcva, dstenv, (uint32) dstva, perm);
 }
 
-int __sys_unmap_frame(int32 envid, void *va)
+int __sys_unmap_frame(uint32 va)
 {
-	return syscall(SYS_unmap_frame, envid, (uint32) va, 0, 0, 0);
+	return syscall(SYS_unmap_frame, va, 0, 0, 0, 0);
 }
 
 uint32 sys_calculate_required_frames(uint32 start_virtual_address, uint32 size)
@@ -118,24 +118,24 @@ sys_clear_ffl()
 	syscall(SYS_clearFFL,0, 0, 0, 0, 0);
 }
 
-int sys_createSharedObject(char* shareName, uint32 size, uint8 isWritable, void* virtual_address)
+int sys_create_shared_object(char* shareName, uint32 size, uint8 isWritable, void* virtual_address)
 {
 	return syscall(SYS_create_shared_object,(uint32)shareName, (uint32)size, isWritable, (uint32)virtual_address,  0);
 }
 
 //2017:
-int sys_getSizeOfSharedObject(int32 ownerID, char* shareName)
+int sys_size_of_shared_object(int32 ownerID, char* shareName)
 {
 	return syscall(SYS_get_size_of_shared_object,(uint32) ownerID, (uint32)shareName, 0, 0, 0);
 }
 //==========
 
-int sys_getSharedObject(int32 ownerID, char* shareName, void* virtual_address)
+int sys_get_shared_object(int32 ownerID, char* shareName, void* virtual_address)
 {
 	return syscall(SYS_get_shared_object,(uint32) ownerID, (uint32)shareName, (uint32)virtual_address, 0, 0);
 }
 
-int sys_freeSharedObject(int32 sharedObjectID, void *startVA)
+int sys_delete_shared_object(int32 sharedObjectID, void *startVA)
 {
 	return syscall(SYS_free_shared_object,(uint32) sharedObjectID, (uint32) startVA, 0, 0, 0);
 }
@@ -157,18 +157,18 @@ int sys_destroy_env(int32  envid)
 
 int32 sys_getenvid(void)
 {
-	 return syscall(SYS_getenvid, 0, 0, 0, 0, 0);
+	return syscall(SYS_getenvid, 0, 0, 0, 0, 0);
 }
 
 //2017
 int32 sys_getenvindex(void)
 {
-	 return syscall(SYS_getenvindex, 0, 0, 0, 0, 0);
+	return syscall(SYS_getenvindex, 0, 0, 0, 0, 0);
 }
 
 int32 sys_getparentenvid(void)
 {
-	 return syscall(SYS_getparentenvid, 0, 0, 0, 0, 0);
+	return syscall(SYS_getparentenvid, 0, 0, 0, 0, 0);
 }
 
 
@@ -227,43 +227,16 @@ uint32 gettst()
 	return syscall(SYS_gettst, 0, 0, 0, 0, 0);
 }
 
-
-//2015
-uint32 sys_isUHeapPlacementStrategyFIRSTFIT()
+/*2025*/
+uint32 sys_get_uheap_strategy()
 {
-	uint32 ret = syscall(SYS_get_heap_strategy, 0, 0, 0, 0, 0);
-	if (ret == UHP_PLACE_FIRSTFIT)
-		return 1;
-	else
-		return 0;
-}
-uint32 sys_isUHeapPlacementStrategyBESTFIT()
-{
-	uint32 ret = syscall(SYS_get_heap_strategy, 0, 0, 0, 0, 0);
-	if (ret == UHP_PLACE_BESTFIT)
-		return 1;
-	else
-		return 0;
-}
-uint32 sys_isUHeapPlacementStrategyNEXTFIT()
-{
-	uint32 ret = syscall(SYS_get_heap_strategy, 0, 0, 0, 0, 0);
-	if (ret == UHP_PLACE_NEXTFIT)
-		return 1;
-	else
-		return 0;
-}
-uint32 sys_isUHeapPlacementStrategyWORSTFIT()
-{
-	uint32 ret = syscall(SYS_get_heap_strategy, 0, 0, 0, 0, 0);
-	if (ret == UHP_PLACE_WORSTFIT)
-		return 1;
-	else
-		return 0;
+	uheapPlaceStrategy = syscall(SYS_get_heap_strategy, 0, 0, 0, 0, 0);
+	return uheapPlaceStrategy ;
 }
 
 void sys_set_uheap_strategy(uint32 heapStrategy)
 {
+	uheapPlaceStrategy = heapStrategy;
 	syscall(SYS_set_heap_strategy, heapStrategy, 0, 0, 0, 0);
 	return ;
 }
@@ -293,25 +266,31 @@ void sys_utilities(char* utilityName, int value)
 	syscall(SYS_utilities, (uint32)utilityName, value, 0, 0, 0);
 	return;
 }
-
-
-//TODO: SYSTEM CALLS - Implement the system calls
-void* sys_sbrk(int increment)
+/*2025*/
+int sys_get_optimal_num_faults()
 {
-	//Comment the following line before start coding...
-	panic("not implemented yet");
-	return NULL;
+	return syscall(SYS_get_optimal_num_faults, 0, 0, 0, 0, 0);
 }
 
 void sys_free_user_mem(uint32 virtual_address, uint32 size)
 {
-	//Comment the following line before start coding...
-	panic("not implemented yet");
+	syscall(SYS_free_user_mem, virtual_address, size, 0, 0, 0);
+	return;
 }
 
 void sys_allocate_user_mem(uint32 virtual_address, uint32 size)
 {
-	//Comment the following line before start coding...
-	panic("not implemented yet");
+	syscall(SYS_allocate_user_mem, virtual_address, size, 0, 0, 0);
+	return ;
 }
+
+
+void sys_env_set_priority(int32 envID, int priority)
+{
+	//TODO: [PROJECT'25.IM#4] CPU SCHEDULING - #1 System Calls - Add suitable code here
+	//Your code is here
+	//Comment the following line
+	panic("sys_env_set_priority() is not implemented yet...!!");
+}
+//=============================================
 

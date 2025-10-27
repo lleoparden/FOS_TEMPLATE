@@ -31,7 +31,7 @@ struct
 {
 	struct FrameInfo_List free_frame_list;		// Free list of physical frames_info
 	struct FrameInfo_List modified_frame_list;	// Modified frame list for buffering
-	struct spinlock mfllock;					// TODO SpinLock to protect the frame info lists
+	struct kspinlock mfllock;					// Lock to protect the frame info lists
 } MemFrameLists;
 
 //BOOT TIME [KERNEL SPACE]

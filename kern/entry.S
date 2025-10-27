@@ -107,3 +107,11 @@ mygdtdesc:
 	.word	0x17				# sizeof(mygdt) - 1
 	.long	RELOC(mygdt)		# address mygdt
 
+###################################################################
+# ENABLE/DISABLE AUTOGRADE
+###################################################################
+	.p2align	2		# force 4 byte alignment
+	.globl		__autograde__
+__autograde__:
+	.long		0
+

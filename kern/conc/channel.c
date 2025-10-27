@@ -26,12 +26,12 @@ void init_channel(struct Channel *chan, char *name)
 // Atomically release lock and sleep on chan.
 // Reacquires lock when awakened.
 // Ref: xv6-x86 OS code
-void sleep(struct Channel *chan, struct spinlock* lk)
+void sleep(struct Channel *chan, struct kspinlock* lk)
 {
-	//COMMENT THE FOLLOWING LINE BEFORE START CODING
-	panic("sleep is not implemented yet");
-	//Your Code is Here...
-
+	//TODO: [PROJECT'25.IM#5] KERNEL PROTECTION: #1 CHANNEL - sleep
+	//Your code is here
+	//Comment the following line
+	panic("sleep() is not implemented yet...!!");
 }
 
 //==================================================
@@ -43,9 +43,10 @@ void sleep(struct Channel *chan, struct spinlock* lk)
 // chan MUST be of type "struct Env_Queue" to hold the blocked processes
 void wakeup_one(struct Channel *chan)
 {
-	//COMMENT THE FOLLOWING LINE BEFORE START CODING
-	panic("wakeup_one is not implemented yet");
-	//Your Code is Here...
+	//TODO: [PROJECT'25.IM#5] KERNEL PROTECTION: #2 CHANNEL - wakeup_one
+	//Your code is here
+	//Comment the following line
+	panic("wakeup_one() is not implemented yet...!!");
 }
 
 //====================================================
@@ -58,9 +59,9 @@ void wakeup_one(struct Channel *chan)
 
 void wakeup_all(struct Channel *chan)
 {
-	//COMMENT THE FOLLOWING LINE BEFORE START CODING
-	panic("wakeup_all is not implemented yet");
-	//Your Code is Here...
-
+	//TODO: [PROJECT'25.IM#5] KERNEL PROTECTION: #3 CHANNEL - wakeup_all
+	//Your code is here
+	//Comment the following line
+	panic("wakeup_all() is not implemented yet...!!");
 }
 

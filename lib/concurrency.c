@@ -8,10 +8,13 @@ env_sleep(uint32 approxMilliSeconds)
 	uint32 time_in_cycles=approxMilliSeconds*CYCLES_PER_MILLISEC;
 	uint32 cycles_counter =0;
 
-	struct uint64 baseTime = sys_get_virtual_time() ;
+	/*2024*/ //USE A USER-SIDE VERSION OF THIS FUNCTION TO AVOID SLOW-DOWN THE PERFORMANCE DUE SYS_CALL (el7 :))
+	//struct uint64 baseTime = sys_get_virtual_time() ;
+	struct uint64 baseTime = get_virtual_time_user() ;
 	while(cycles_counter<time_in_cycles)
 	{
-		struct uint64 currentTime = sys_get_virtual_time() ;
+		//struct uint64 currentTime = sys_get_virtual_time() ;
+		struct uint64 currentTime = get_virtual_time_user() ;
 
 		// update the cycles_count
 		#define M32 0xffffffff

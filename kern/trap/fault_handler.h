@@ -20,15 +20,17 @@ uint32 _EnableModifiedBuffer ;
 uint32 _EnableBuffering ;
 
 uint32 _PageRepAlgoType;
-#define PG_REP_LRU_TIME_APPROX 0x1
+#define PG_REP_LRU_TIME_APPROX 	0x1
 #define PG_REP_LRU_LISTS_APPROX 0x2
-#define PG_REP_CLOCK 0x3
-#define PG_REP_FIFO 0x4
-#define PG_REP_MODIFIEDCLOCK  0x5
-#define PG_REP_NchanceCLOCK 0x6
-#define PG_REP_DYNAMIC_LOCAL 0x7
+#define PG_REP_CLOCK 			0x3
+#define PG_REP_FIFO 			0x4
+#define PG_REP_MODIFIEDCLOCK  	0x5
+#define PG_REP_NchanceCLOCK 	0x6
+#define PG_REP_DYNAMIC_LOCAL 	0x7
+#define PG_REP_OPTIMAL 			0x8
+bool FASTNchanceCLOCK ;
 
-int page_WS_max_sweeps;
+/*2021*/ int page_WS_max_sweeps;
 
 extern uint8 bypassInstrLength ;
 
@@ -44,6 +46,8 @@ void setPageReplacmentAlgorithmFIFO();
 void setPageReplacmentAlgorithmModifiedCLOCK();
 /*2018*/void setPageReplacmentAlgorithmDynamicLocal();
 /*2021*/void setPageReplacmentAlgorithmNchanceCLOCK();
+/*2024*/void setFASTNchanceCLOCK(bool fast);
+/*2025*/void setPageReplacmentAlgorithmOPTIMAL();
 
 uint32 isPageReplacmentAlgorithmLRU(int LRU_TYPE);
 uint32 isPageReplacmentAlgorithmCLOCK();
@@ -51,6 +55,7 @@ uint32 isPageReplacmentAlgorithmFIFO();
 uint32 isPageReplacmentAlgorithmModifiedCLOCK();
 /*2018*/uint32 isPageReplacmentAlgorithmDynamicLocal();
 /*2021*/ uint32 isPageReplacmentAlgorithmNchanceCLOCK();
+/*2025*/ uint32 isPageReplacmentAlgorithmOPTIMAL();
 
 //===============================
 // PAGE BUFFERING
@@ -65,10 +70,11 @@ uint32 getModifiedBufferLength();
 //===============================
 // FAULT HANDLERS
 //===============================
-void fault_handler(struct Trapframe *tf);
+void fault_handler_init();
+void fault_handler(struct Trapframe *);
 void __page_fault_handler_with_buffering(struct Env * curenv, uint32 fault_va);
 void dyn_alloc_local_scope_method(struct Env * curenv, uint32 fault_va);
 void page_fault_handler(struct Env * curenv, uint32 fault_va);
 void table_fault_handler(struct Env * curenv, uint32 fault_va);
-
+/*2025*/ int get_optimal_num_faults(struct WS_List *initWorkingSet, int maxWSSize, struct PageRef_List *pageReferences);
 #endif /* KERN_FAULT_HANDLER_H_ */

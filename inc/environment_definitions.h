@@ -49,7 +49,8 @@ unsigned int _ModifiedBufferLength;
 #define ENV_BLOCKED		3
 #define ENV_NEW			4
 #define ENV_EXIT		5
-#define ENV_UNKNOWN		6
+#define ENV_KILLED		6
+#define ENV_UNKNOWN		7
 
 LIST_HEAD(Env_Queue, Env);		// Declares 'struct Env_Queue'
 LIST_HEAD(Env_list, Env);		// Declares 'struct Env_list'
@@ -70,6 +71,14 @@ struct WorkingSetElement {
 
 //2020
 LIST_HEAD(WS_List, WorkingSetElement);		// Declares 'struct WS_list'
+
+/*2025*/
+struct PageRefElement {
+	unsigned int virtual_address;
+	LIST_ENTRY(PageRefElement) prev_next_info;	// list link pointers
+};
+LIST_HEAD(PageRef_List, PageRefElement);		// Declares 'struct PageRef_List'
+
 //======================================================================
 
 //2024 (ref: xv6 OS - x86 version)
@@ -118,7 +127,6 @@ struct Env {
 									//(to be dynamically allocated during the process creation)
 									//Its first page is ALWAYS used as a GUARD PAGE (i.e. unmapped)
 
-	//=======================================================================
 	//for page file management
 	uint32* disk_env_pgdir;
 	//2016
@@ -137,12 +145,15 @@ struct Env {
 #if USE_KHEAP
 	struct WS_List page_WS_list ;					//List of WS elements
 	struct WorkingSetElement* page_last_WS_element;	//ptr to last inserted WS element
+	struct PageRef_List referenceStreamList;		//List of page references stream to be used for OPTIMAL replacement strategy
+	uint32 *prepagedVAs;							//Initial virtual addresses after fetching the process into RAM
+	uint32 numOfPrepagedVAs;						//Number of prepaged VAs
 #else
 	struct WorkingSetElement ptr_pageWorkingSet[__PWS_MAX_SIZE];
 	//uint32 page_last_WS_index;
 	struct WS_List PageWorkingSetList ;	//LRU Approx: List of available WS elements
-#endif
 	uint32 page_last_WS_index;
+#endif
 
 	//table working set management
 	struct WorkingSetElement __ptr_tws[__TWS_MAX_SIZE];
@@ -158,10 +169,14 @@ struct Env {
 	struct WorkingSetElement* __uptr_pws;
 
 	//Percentage of WS pages to be removed [either for scarce RAM or Full WS]
-	unsigned int percentage_of_WS_pages_to_be_removed;
+		unsigned int percentage_of_WS_pages_to_be_removed;
 
 	//==================
 	/*CPU BSD Sched...*/
+	//==================
+
+	//==================
+	/*CPU PRIORITY RR Sched...*/
 	//==================
 
 	//================

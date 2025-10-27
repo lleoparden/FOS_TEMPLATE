@@ -33,11 +33,22 @@ libmain(int argc, char **argv)
 
 	if (printStats)
 	{
+		char isOPTReplCmd[100] = "__IsOPTRepl__" ;
+		int isOPTRepl = 0;
+		sys_utilities(isOPTReplCmd, (uint32)(&isOPTRepl));
+
 		sys_lock_cons();
 		{
 			cprintf("**************************************\n");
-			cprintf("Num of PAGE faults = %d, modif = %d\n", myEnv->pageFaultsCounter, myEnv->nModifiedPages);
-			cprintf("# PAGE IN (from disk) = %d, # PAGE OUT (on disk) = %d, # NEW PAGE ADDED (on disk) = %d\n", myEnv->nPageIn, myEnv->nPageOut,myEnv->nNewPageAdded);
+			if (isOPTRepl)
+			{
+				cprintf("OPTIMAL number of page faults = %d\n", sys_get_optimal_num_faults());
+			}
+			else
+			{
+				cprintf("Num of PAGE faults = %d, modif = %d\n", myEnv->pageFaultsCounter, myEnv->nModifiedPages);
+				cprintf("# PAGE IN (from disk) = %d, # PAGE OUT (on disk) = %d, # NEW PAGE ADDED (on disk) = %d\n", myEnv->nPageIn, myEnv->nPageOut,myEnv->nNewPageAdded);
+			}
 			//cprintf("Num of freeing scarce memory = %d, freeing full working set = %d\n", myEnv->freeingScarceMemCounter, myEnv->freeingFullWSCounter);
 			cprintf("Num of clocks = %d\n", myEnv->nClocks);
 			cprintf("**************************************\n");

@@ -20,7 +20,7 @@
 #include <kern/tests/test_working_set.h>
 
 extern uint8 bypassInstrLength ;
-struct Env* cur_env ;
+//struct Env* cur_env ;
 /*******************************/
 /* STRING I/O SYSTEM CALLS */
 /*******************************/
@@ -28,20 +28,23 @@ struct Env* cur_env ;
 // Print a string to the system console.
 // The string is exactly 'len' characters long.
 // Destroys the environment on memory errors.
-static void sys_cputs(const char *s, uint32 len, uint8 printProgName)
+static void sys_cputs(const char *s, uint32 len, uint8 printProgName, int color)
 {
-	//2024 - better to use locks instead (to support multiprocessors)
+	struct Env* cur_env = get_cpu_proc();
+	assert(cur_env != NULL);
+
 	pushcli();	//disable interrupts
 	{
 		// Check that the user has permission to read memory [s, s+len).
 		// Destroy the environment if not.
-
-		// LAB 3: Your code here.
-
-		// Print the string supplied by the user.
-		if (printProgName)
-			cprintf("[%s %d] ",cur_env->prog_name, cur_env->env_id);
-		cprintf("%.*s",len, s);
+		current_text_color = color; // setting text color to be used in cga_putc()
+		{
+			// Print the string supplied by the user.
+			if (printProgName)
+				cprintf("[%s %d] ",cur_env->prog_name, cur_env->env_id);
+			cprintf("%.*s",len, s);
+		}
+		current_text_color = TEXT_DEFAULT_CLR; //restore default text color
 	}
 	popcli();	//enable interrupts
 }
@@ -71,11 +74,11 @@ sys_cgetc(void)
 			//should sleep (i.e. blocked) until a IRQ1 (KB) interrupt occur
 			if (KBD_INT_BLK_METHOD == LCK_SLEEP)
 			{
-				acquire_spinlock(&KBDlock);
+				acquire_kspinlock(&KBDlock);
 				{
 					sleep(&KBDchannel, &KBDlock);
 				}
-				release_spinlock(&KBDlock);
+				release_kspinlock(&KBDlock);
 			}
 			else if (KBD_INT_BLK_METHOD == LCK_SEMAPHORE)
 			{
@@ -114,40 +117,30 @@ void sys_unlock_cons(void)
 /* MEMORY SYSTEM CALLS */
 /*******************************/
 // Allocate a page of memory and map it at 'va' with permission
-// 'perm' in the address space of 'envid'.
+// 'perm' in the address space of the current environment.
 // The page's contents are set to 0.
-// If a page is already mapped at 'va', that page is unmapped as a
-// side effect.
+// If a page is already mapped at 'va', that page is unmapped as a side effect.
 //
-// perm -- PTE_U | PTE_P must be set, PTE_AVAIL | PTE_W may or may not be set,
+// perm -- PERM_USER | PERM_PRESENT must be set, PERM_AVAIL | PERM_WRITEABLE may or may not be set,
 //         but no other bits may be set.
 //
 // Return 0 on success, < 0 on error.  Errors are:
-//	E_BAD_ENV if environment envid doesn't currently exist,
-//		or the caller doesn't have permission to change envid.
-//	E_INVAL if va >= UTOP, or va is not page-aligned.
+//	E_BAD_ENV if environment doesn't currently exist,
+//	E_INVAL if va >= USER_TOP, or va is not page-aligned.
 //	E_INVAL if perm is inappropriate (see above).
 //	E_NO_MEM if there's no memory to allocate the new page,
 //		or to allocate any necessary page tables.
 static int __sys_allocate_page(void *va, int perm)
 {
-	// Hint: This function is a wrapper around page_alloc() and
-	//   page_insert() from kern/pmap.c.
+	// Hint: This function is a wrapper around allocate_frame() and
+	//   map_frame() from kern/mem/memory_manager.c.
 	//   Most of the new code you write should be to check the
 	//   parameters for correctness.
-	//   If page_insert() fails, remember to free the page you
-	//   allocated!
+	//   If map_frame() fails, remember to free the page you allocated!
 
-	int r;
-	struct Env *e = cur_env;
-
-	//if ((r = envid2env(envid, &e, 1)) < 0)
-	//return r;
-
-	struct FrameInfo *ptr_frame_info ;
-	r = allocate_frame(&ptr_frame_info) ;
-	if (r == E_NO_MEM)
-		return r ;
+	struct Env* cur_env = get_cpu_proc();
+	if(cur_env == NULL)
+		return E_BAD_ENV;
 
 	//check virtual address to be paged_aligned and < USER_TOP
 	if ((uint32)va >= USER_TOP || (uint32)va % PAGE_SIZE != 0)
@@ -157,36 +150,10 @@ static int __sys_allocate_page(void *va, int perm)
 	if ((perm & (~PERM_AVAILABLE & ~PERM_WRITEABLE)) != (PERM_USER))
 		return E_INVAL;
 
+	int ret = alloc_page(cur_env->env_page_directory, (uint32)va, perm, 1);
+	if (ret == E_NO_MEM)
+		return ret ;
 
-	uint32 physical_address = to_physical_address(ptr_frame_info) ;
-
-#if USE_KHEAP
-	{
-		//FIX: we should implement a better solution for this, but for now
-		//		we are using an unsed VA in the invalid area of kernel at 0xef800000 (the current USER_LIMIT)
-		//		to do temp initialization of a frame.
-		map_frame(e->env_page_directory, ptr_frame_info, USER_LIMIT, PERM_WRITEABLE);
-		memset((void*)USER_LIMIT, 0, PAGE_SIZE);
-
-		// Temporarily increase the references to prevent unmap_frame from removing the frame
-		// we just got from allocate_frame, we will use it for the new page
-		ptr_frame_info->references += 1;
-		unmap_frame(e->env_page_directory, USER_LIMIT);
-
-		//return it to the original status
-		ptr_frame_info->references -= 1;
-	}
-#else
-	{
-		memset(STATIC_KERNEL_VIRTUAL_ADDRESS(physical_address), 0, PAGE_SIZE);
-	}
-#endif
-	r = map_frame(e->env_page_directory, ptr_frame_info, (uint32)va, perm) ;
-	if (r == E_NO_MEM)
-	{
-		decrement_references(ptr_frame_info);
-		return r;
-	}
 	return 0 ;
 }
 
@@ -222,24 +189,30 @@ static int __sys_map_frame(int32 srcenvid, void *srcva, int32 dstenvid, void *ds
 
 }
 
-// Unmap the page of memory at 'va' in the address space of 'envid'.
+// Unmap the page of memory at 'va' in the address space of the current environment.
 // If no page is mapped, the function silently succeeds.
 //
 // Return 0 on success, < 0 on error.  Errors are:
-//	-E_BAD_ENV if environment envid doesn't currently exist,
-//		or the caller doesn't have permission to change envid.
-//	-E_INVAL if va >= UTOP, or va is not page-aligned.
-static int __sys_unmap_frame(int32 envid, void *va)
+//	E_BAD_ENV if environment doesn't currently exist,
+//	E_INVAL if va >= USER_TOP, or va is not page-aligned.
+static int __sys_unmap_frame(uint32 va)
 {
-	// Hint: This function is a wrapper around page_remove().
+	struct Env* cur_env = get_cpu_proc();
+	if(cur_env == NULL)
+		return E_BAD_ENV;
 
-	// LAB 4: Your code here.
-	panic("sys_page_unmap not implemented");
+	if (va >= USER_TOP || va % PAGE_SIZE != 0)
+		return E_INVAL;
+
+	unmap_frame(cur_env->env_page_directory, va);
 	return 0;
 }
 
 uint32 sys_calculate_required_frames(uint32 start_virtual_address, uint32 size)
 {
+	struct Env* cur_env = get_cpu_proc();
+	assert(cur_env != NULL);
+
 	return calculate_required_frames(cur_env->env_page_directory, start_virtual_address, size);
 }
 
@@ -276,7 +249,7 @@ void sys_scarce_memory(void)
 void sys_clearFFL()
 {
 	int size;
-	acquire_spinlock(&MemFrameLists.mfllock);
+	acquire_kspinlock(&MemFrameLists.mfllock);
 	{
 		size = LIST_SIZE(&MemFrameLists.free_frame_list) ;
 		struct FrameInfo* ptr_tmp_FI ;
@@ -285,7 +258,7 @@ void sys_clearFFL()
 			allocate_frame(&ptr_tmp_FI) ;
 		}
 	}
-	release_spinlock(&MemFrameLists.mfllock);
+	release_kspinlock(&MemFrameLists.mfllock);
 }
 
 /*******************************/
@@ -293,6 +266,9 @@ void sys_clearFFL()
 /*******************************/
 int sys_pf_calculate_allocated_pages(void)
 {
+	struct Env* cur_env = get_cpu_proc();
+	assert(cur_env != NULL);
+
 	return pf_calculate_allocated_pages(cur_env);
 }
 
@@ -301,6 +277,16 @@ int sys_pf_calculate_allocated_pages(void)
 /*******************************/
 void sys_free_user_mem(uint32 virtual_address, uint32 size)
 {
+	struct Env* cur_env = get_cpu_proc();
+	assert(cur_env != NULL);
+
+	if (virtual_address == 0 || (virtual_address >= USER_HEAP_MAX) || (virtual_address < USER_HEAP_START)
+		|| (virtual_address + size >= USER_HEAP_MAX) || (virtual_address + size < USER_HEAP_START))
+	{
+		cprintf("\nsys_free_user_mem(): ILLEGAL ADDRESS! Process will be terminated...\n");
+		env_exit();
+	}
+
 	if(isBufferingEnabled())
 	{
 		__free_user_mem_with_buffering(cur_env, virtual_address, size);
@@ -314,12 +300,24 @@ void sys_free_user_mem(uint32 virtual_address, uint32 size)
 
 void sys_allocate_user_mem(uint32 virtual_address, uint32 size)
 {
+	struct Env* cur_env = get_cpu_proc();
+	assert(cur_env != NULL);
+
+	if (virtual_address == 0 || (virtual_address >= USER_HEAP_MAX) || (virtual_address < USER_HEAP_START)
+		|| (virtual_address + size >= USER_HEAP_MAX) || (virtual_address + size < USER_HEAP_START))
+	{
+		cprintf("\nsys_free_user_mem(): ILLEGAL ADDRESS! Process will be terminated...\n");
+		env_exit();
+	}
 	allocate_user_mem(cur_env, virtual_address, size);
 	return;
 }
 
 void sys_allocate_chunk(uint32 virtual_address, uint32 size, uint32 perms)
 {
+	struct Env* cur_env = get_cpu_proc();
+	assert(cur_env != NULL);
+
 	allocate_chunk(cur_env->env_page_directory, virtual_address, size, perms);
 	return;
 }
@@ -327,6 +325,9 @@ void sys_allocate_chunk(uint32 virtual_address, uint32 size, uint32 perms)
 //2014
 void sys_move_user_mem(uint32 src_virtual_address, uint32 dst_virtual_address, uint32 size)
 {
+	struct Env* cur_env = get_cpu_proc();
+	assert(cur_env != NULL);
+
 	move_user_mem(cur_env, src_virtual_address, dst_virtual_address, size);
 	return;
 }
@@ -349,24 +350,27 @@ void sys_set_uheap_strategy(uint32 heapStrategy)
 /*******************************/
 /* SHARED MEMORY SYSTEM CALLS */
 /*******************************/
-int sys_createSharedObject(char* shareName, uint32 size, uint8 isWritable, void* virtual_address)
+int sys_create_shared_object(char* shareName, uint32 size, uint8 isWritable, void* virtual_address)
 {
-	return createSharedObject(cur_env->env_id, shareName, size, isWritable, virtual_address);
+	struct Env* cur_env = get_cpu_proc();
+	assert(cur_env != NULL);
+
+	return create_shared_object(cur_env->env_id, shareName, size, isWritable, virtual_address);
 }
 
-int sys_getSizeOfSharedObject(int32 ownerID, char* shareName)
+int sys_size_of_shared_object(int32 ownerID, char* shareName)
 {
-	return getSizeOfSharedObject(ownerID, shareName);
+	return size_of_shared_object(ownerID, shareName);
 }
 
-int sys_getSharedObject(int32 ownerID, char* shareName, void* virtual_address)
+int sys_get_shared_object(int32 ownerID, char* shareName, void* virtual_address)
 {
-	return getSharedObject(ownerID, shareName, virtual_address);
+	return get_shared_object(ownerID, shareName, virtual_address);
 }
 
-int sys_freeSharedObject(int32 sharedObjectID, void *startVA)
+int sys_delete_shared_object(int32 sharedObjectID, void *startVA)
 {
-	return freeSharedObject(sharedObjectID, startVA);
+	return delete_shared_object(sharedObjectID, startVA);
 }
 
 /*********************************/
@@ -376,12 +380,18 @@ int sys_freeSharedObject(int32 sharedObjectID, void *startVA)
 //2017
 static int32 sys_getenvid(void)
 {
+	struct Env* cur_env = get_cpu_proc();
+	assert(cur_env != NULL);
+
 	return cur_env->env_id;
 }
 
 //2017
 static int32 sys_getenvindex(void)
 {
+	struct Env* cur_env = get_cpu_proc();
+	assert(cur_env != NULL);
+
 	//return cur_env->env_id;
 	return (cur_env - envs) ;
 }
@@ -389,6 +399,9 @@ static int32 sys_getenvindex(void)
 //2017
 static int32 sys_getparentenvid(void)
 {
+	struct Env* cur_env = get_cpu_proc();
+	assert(cur_env != NULL);
+
 	return cur_env->env_parent_id;
 }
 
@@ -400,6 +413,9 @@ static int32 sys_getparentenvid(void)
 //		or the caller doesn't have permission to change envid.
 static int sys_destroy_env(int32 envid)
 {
+	struct Env* cur_env = get_cpu_proc();
+	assert(cur_env != NULL);
+
 	int r;
 	struct Env *e;
 	if (envid == 0)
@@ -464,6 +480,28 @@ void sys_run_env(int32 envId)
 	sched_run_env(envId);
 }
 
+//Calculate the number of page faults for the OPTIMAL replacement
+int sys_get_optimal_num_faults()
+{
+#if USE_KHEAP
+	struct Env* cur_env = get_cpu_proc();
+	assert(cur_env != NULL);
+
+	struct WorkingSetElement *ptrWSE ;
+	int w = 0;
+	LIST_FOREACH(ptrWSE, &(cur_env->page_WS_list))
+	{
+		if (ROUNDDOWN(ptrWSE->virtual_address, PAGE_SIZE) != ROUNDDOWN(cur_env->prepagedVAs[w++], PAGE_SIZE))
+		{
+			panic("sys_get_optimal_num_faults(): page working set is changed during the OPTIMAL replacement while it's not expected to");
+		}
+	}
+	return get_optimal_num_faults(&(cur_env->page_WS_list), cur_env->page_WS_max_size, &(cur_env->referenceStreamList));
+#else
+	panic("MUST ENABLE KHEAP");
+#endif
+	return 0;
+}
 
 //====================================
 /*******************************/
@@ -492,7 +530,7 @@ void sys_bypassPageFault(uint8 instrLength)
 // Dispatches to the correct kernel function, passing the arguments.
 uint32 syscall(uint32 syscallno, uint32 a1, uint32 a2, uint32 a3, uint32 a4, uint32 a5)
 {
-	cur_env = get_cpu_proc();
+	struct Env* cur_env = get_cpu_proc();
 	assert(cur_env != NULL);
 
 	//cprintf("syscallno = %d\n", syscallno);
@@ -500,15 +538,21 @@ uint32 syscall(uint32 syscallno, uint32 a1, uint32 a2, uint32 a3, uint32 a4, uin
 	// Return any appropriate return value.
 	switch(syscallno)
 	{
-	//TODO: SYSTEM CALLS - Add suitable code here
+	/*2023*/
+	//TODO: [PROJECT'25.IM#4] CPU SCHEDULING - #1 System Calls - Add suitable code here
+	//Your code is here
 
-	//======================================================================
+	//=============================================
 	case SYS_cputs:
-		sys_cputs((const char*)a1,a2,(uint8)a3);
+		sys_cputs((const char*)a1,a2,(uint8)a3, a4);
 		return 0;
 		break;
 	case SYS_cgetc:
 		return sys_cgetc();
+		break;
+	case SYS_cputc:
+		sys_cputc((const char)a1);
+		return 0;
 		break;
 	case SYS_lock_cons:
 		sys_lock_cons();
@@ -548,21 +592,14 @@ uint32 syscall(uint32 syscallno, uint32 a1, uint32 a2, uint32 a3, uint32 a4, uin
 
 		//======================
 	case SYS_allocate_page:
-		__sys_allocate_page((void*)a1, a2);
-		return 0;
+		return __sys_allocate_page((void*)a1, a2);
 		break;
 	case SYS_map_frame:
 		__sys_map_frame(a1, (void*)a2, a3, (void*)a4, a5);
 		return 0;
 		break;
 	case SYS_unmap_frame:
-		__sys_unmap_frame(a1, (void*)a2);
-		return 0;
-		break;
-
-	case SYS_cputc:
-		sys_cputc((const char)a1);
-		return 0;
+		return __sys_unmap_frame(a1);
 		break;
 
 	case SYS_clearFFL:
@@ -571,19 +608,19 @@ uint32 syscall(uint32 syscallno, uint32 a1, uint32 a2, uint32 a3, uint32 a4, uin
 		break;
 
 	case SYS_create_shared_object:
-		return sys_createSharedObject((char*)a1, a2, a3, (void*)a4);
+		return sys_create_shared_object((char*)a1, a2, a3, (void*)a4);
 		break;
 
 	case SYS_get_shared_object:
-		return sys_getSharedObject((int32)a1, (char*)a2, (void*)a3);
+		return sys_get_shared_object((int32)a1, (char*)a2, (void*)a3);
 		break;
 
 	case SYS_free_shared_object:
-		return sys_freeSharedObject((int32)a1, (void *)a2);
+		return sys_delete_shared_object((int32)a1, (void *)a2);
 		break;
 
 	case SYS_get_size_of_shared_object:
-		return sys_getSizeOfSharedObject((int32)a1, (char*)a2);
+		return sys_size_of_shared_object((int32)a1, (char*)a2);
 		break;
 
 	case SYS_create_env:
@@ -665,6 +702,9 @@ uint32 syscall(uint32 syscallno, uint32 a1, uint32 a2, uint32 a3, uint32 a4, uin
 	case SYS_utilities:
 		sys_utilities((char*)a1, (int)a2);
 		return 0;
+
+	case SYS_get_optimal_num_faults:
+		return sys_get_optimal_num_faults();
 
 	case NSYSCALLS:
 		return 	-E_INVAL;

@@ -8,7 +8,7 @@
 #include <inc/stdarg.h>
 #include <inc/error.h>
 
-extern unsigned char printProgName;
+//extern unsigned char printProgName;
 
 /*
  * Space or zero padding and a field width are supported for the numeric

@@ -111,35 +111,35 @@ struct Env* find_env_in_queue(struct Env_Queue* queue, uint32 envID)
 void sched_delete_ready_queues()
 {
 #if USE_KHEAP
-	acquire_spinlock(&ProcessQueues.qlock);
+	acquire_kspinlock(&ProcessQueues.qlock);
 	{
 		if (ProcessQueues.env_ready_queues != NULL)
 			kfree(ProcessQueues.env_ready_queues);
 		if (quantums != NULL)
 			kfree(quantums);
 	}
-	release_spinlock(&ProcessQueues.qlock);
+	release_kspinlock(&ProcessQueues.qlock);
 
 #endif
 }
 
-//=================================================
-// [2] Insert the given Env in the 1st Ready Queue:
-//=================================================
-void sched_insert_ready0(struct Env* env)
-{
-	/*To protect process Qs (or info of current process) in multi-CPU*/
-	if(!holding_spinlock(&ProcessQueues.qlock))
-		panic("sched: q.lock is not held by this CPU while it's expected to be.");
-	/*********************************************************************/
-
-	assert(env != NULL);
-	{
-		//cprintf("\nInserting %d into ready queue 0\n", env->env_id);
-		env->env_status = ENV_READY ;
-		enqueue(&(ProcessQueues.env_ready_queues[0]), env);
-	}
-}
+////=================================================
+//// [2] Insert the given Env in the 1st Ready Queue:
+////=================================================
+//void sched_insert_ready0(struct Env* env)
+//{
+//	/*To protect process Qs (or info of current process) in multi-CPU*/
+//	if(!holding_kspinlock(&ProcessQueues.qlock))
+//		panic("sched: q.lock is not held by this CPU while it's expected to be.");
+//	/*********************************************************************/
+//
+//	assert(env != NULL);
+//	{
+//		//cprintf("\nInserting %d into ready queue 0\n", env->env_id);
+//		env->env_status = ENV_READY ;
+//		enqueue(&(ProcessQueues.env_ready_queues[0]), env);
+//	}
+//}
 
 //============================================================
 // [2] Insert the given Env in the priority-based Ready Queue:
@@ -147,7 +147,7 @@ void sched_insert_ready0(struct Env* env)
 void sched_insert_ready(struct Env* env)
 {
 	/*To protect process Qs (or info of current process) in multi-CPU*/
-	if(!holding_spinlock(&ProcessQueues.qlock))
+	if(!holding_kspinlock(&ProcessQueues.qlock))
 		panic("sched: q.lock is not held by this CPU while it's expected to be.");
 	/*********************************************************************/
 
@@ -165,7 +165,7 @@ void sched_insert_ready(struct Env* env)
 void sched_remove_ready(struct Env* env)
 {
 	/*To protect process Qs (or info of current process) in multi-CPU*/
-	if(!holding_spinlock(&ProcessQueues.qlock))
+	if(!holding_kspinlock(&ProcessQueues.qlock))
 		panic("sched: q.lock is not held by this CPU while it's expected to be.");
 	/*********************************************************************/
 
@@ -190,7 +190,7 @@ void sched_remove_ready(struct Env* env)
 void sched_insert_new(struct Env* env)
 {
 	/*To protect process Qs (or info of current process) in multi-CPU*/
-	if(!holding_spinlock(&ProcessQueues.qlock))
+	if(!holding_kspinlock(&ProcessQueues.qlock))
 		panic("sched: q.lock is not held by this CPU while it's expected to be.");
 	/*********************************************************************/
 
@@ -207,7 +207,7 @@ void sched_insert_new(struct Env* env)
 void sched_remove_new(struct Env* env)
 {
 	/*To protect process Qs (or info of current process) in multi-CPU*/
-	if(!holding_spinlock(&ProcessQueues.qlock))
+	if(!holding_kspinlock(&ProcessQueues.qlock))
 		panic("sched: q.lock is not held by this CPU while it's expected to be.");
 	/*********************************************************************/
 
@@ -224,7 +224,7 @@ void sched_remove_new(struct Env* env)
 void sched_insert_exit(struct Env* env)
 {
 	/*To protect process Qs (or info of current process) in multi-CPU*/
-	if(!holding_spinlock(&ProcessQueues.qlock))
+	if(!holding_kspinlock(&ProcessQueues.qlock))
 		panic("sched: q.lock is not held by this CPU while it's expected to be.");
 	/*********************************************************************/
 
@@ -241,7 +241,7 @@ void sched_insert_exit(struct Env* env)
 void sched_remove_exit(struct Env* env)
 {
 	/*To protect process Qs (or info of current process) in multi-CPU*/
-	if(!holding_spinlock(&ProcessQueues.qlock))
+	if(!holding_kspinlock(&ProcessQueues.qlock))
 		panic("sched: q.lock is not held by this CPU while it's expected to be.");
 	/*********************************************************************/
 
@@ -258,7 +258,7 @@ void sched_remove_exit(struct Env* env)
 void sched_new_env(struct Env* e)
 {
 	  //cprintf("\n[SCHED_NEW_ENV] acquire: lock status before acquire = %d\n", qlock.locked);
-	acquire_spinlock(&(ProcessQueues.qlock)); 	//CS on Qs
+	acquire_kspinlock(&(ProcessQueues.qlock)); 	//CS on Qs
 
 	//add the given env to the scheduler NEW queue
 	assert (e!=NULL);
@@ -266,7 +266,7 @@ void sched_new_env(struct Env* e)
 		sched_insert_new(e);
 	}
 
-	release_spinlock(&(ProcessQueues.qlock)); 	//CS on Qs
+	release_kspinlock(&(ProcessQueues.qlock)); 	//CS on Qs
 	  //cprintf("\n[SCHED_NEW_ENV] release: lock status after = %d\n", qlock.locked);
 }
 
@@ -276,7 +276,7 @@ void sched_new_env(struct Env* e)
 void sched_run_env(uint32 envId)
 {
 	  //cprintf("\n[SCHED_RUN_ENV] acquire: lock status before acquire = %d\n", qlock.locked);
-	acquire_spinlock(&(ProcessQueues.qlock)); 	//CS on Qs
+	acquire_kspinlock(&(ProcessQueues.qlock)); 	//CS on Qs
 	struct Env* ptr_env=NULL;
 	LIST_FOREACH(ptr_env, &ProcessQueues.env_new_queue)
 	{
@@ -288,7 +288,7 @@ void sched_run_env(uint32 envId)
 			/*2015*///if scheduler not run yet, then invoke it!
 			if (mycpu()->scheduler_status == SCH_STOPPED)
 			{
-				release_spinlock(&(ProcessQueues.qlock)); 	//CS on Qs
+				release_kspinlock(&(ProcessQueues.qlock)); 	//CS on Qs
 				  //cprintf("\n[SCHED_RUN_ENV] release#1: lock status after = %d\n", qlock.locked);
 				fos_scheduler();
 			}
@@ -299,7 +299,7 @@ void sched_run_env(uint32 envId)
 			break;
 		}
 	}
-	release_spinlock(&(ProcessQueues.qlock)); 	//CS on Qs
+	release_kspinlock(&(ProcessQueues.qlock)); 	//CS on Qs
 	  //cprintf("\n[SCHED_RUN_ENV] release#2: lock status after = %d\n", qlock.locked);
 }
 
@@ -308,11 +308,11 @@ void sched_run_env(uint32 envId)
 //=================================================
 void sched_exit_env(uint32 envId)
 {
-	bool lock_already_held = holding_spinlock(&ProcessQueues.qlock);
+	bool lock_already_held = holding_kspinlock(&ProcessQueues.qlock);
 	  //cprintf("\n[SCHED_EXIT_ENV] acquire: lock status before acquire = %d\n", qlock.locked);
 	if (!lock_already_held)
 	{
-		acquire_spinlock(&ProcessQueues.qlock);
+		acquire_kspinlock(&ProcessQueues.qlock);
 	}
 	struct Env* ptr_env=NULL;
 	int found = 0;
@@ -369,6 +369,8 @@ void sched_exit_env(uint32 envId)
 		//this process
 		if (cur_env->env_id == envId)
 		{
+//			cprintf("\n[%d:%s] LAST WS BEFORE EXIT\n", cur_env->env_id,  cur_env->prog_name);
+//			env_page_ws_print(cur_env);
 			//2024: Replaced by sched() which call context switch
 			//fos_scheduler();
 			sched();
@@ -376,7 +378,7 @@ void sched_exit_env(uint32 envId)
 	}
 	if (!lock_already_held)
 	{
-		release_spinlock(&ProcessQueues.qlock);
+		release_kspinlock(&ProcessQueues.qlock);
 	}
 	//cprintf("\n[SCHED_EXIT_ENV] release: lock status after = %d\n", qlock.locked);
 }
@@ -388,7 +390,7 @@ void sched_exit_env(uint32 envId)
 //=================================================
 void sched_kill_env(uint32 envId)
 {
-	acquire_spinlock(&(ProcessQueues.qlock)); 	//CS on Qs
+	acquire_kspinlock(&(ProcessQueues.qlock)); 	//CS on Qs
 	struct Env* ptr_env=NULL;
 	int found = 0;
 	if (!found)
@@ -397,7 +399,7 @@ void sched_kill_env(uint32 envId)
 		{
 			if(ptr_env->env_id == envId)
 			{
-				cprintf("killing[%d] %s from the NEW queue...", ptr_env->env_id, ptr_env->prog_name);
+				cprintf("[BEGIN] killing[%d] %s from the NEW queue...", ptr_env->env_id, ptr_env->prog_name);
 				sched_remove_new(ptr_env);
 				found = 1;
 				break;
@@ -415,7 +417,7 @@ void sched_kill_env(uint32 envId)
 				{
 					if(ptr_env->env_id == envId)
 					{
-						cprintf("killing[%d] %s from the READY queue #%d...", ptr_env->env_id, ptr_env->prog_name, i);
+						cprintf("[BEGIN] killing[%d] %s from the READY queue #%d...", ptr_env->env_id, ptr_env->prog_name, i);
 						LIST_REMOVE(&(ProcessQueues.env_ready_queues[i]), ptr_env);
 						found = 1;
 						break;
@@ -433,19 +435,19 @@ void sched_kill_env(uint32 envId)
 		{
 			if(ptr_env->env_id == envId)
 			{
-				cprintf("killing[%d] %s from the EXIT queue...", ptr_env->env_id, ptr_env->prog_name);
+				cprintf("[BEGIN] killing[%d] %s from the EXIT queue...\n", ptr_env->env_id, ptr_env->prog_name);
 				sched_remove_exit(ptr_env);
 				found = 1;
 				break;
 			}
 		}
 	}
-	release_spinlock(&(ProcessQueues.qlock)); 	//CS on Qs
+	release_kspinlock(&(ProcessQueues.qlock)); 	//CS on Qs
 
 	if (found)
 	{
 		env_free(ptr_env);
-		cprintf("DONE\n");
+		cprintf("[END] DONE\n");
 	}
 	else
 	{
@@ -456,9 +458,9 @@ void sched_kill_env(uint32 envId)
 		{
 			ptr_env = cur_env;
 			assert(ptr_env->env_status == ENV_RUNNING);
-			cprintf("killing a RUNNABLE environment [%d] %s...", ptr_env->env_id, ptr_env->prog_name);
+			cprintf("[BEGIN] killing a RUNNABLE environment [%d] %s...\n", ptr_env->env_id, ptr_env->prog_name);
 			env_free(ptr_env);
-			cprintf("DONE\n");
+			cprintf("[END] DONE\n");
 			found = 1;
 			//If it's the curenv, then reset it and reinvoke the scheduler as there's no meaning to
 			//return back to a killed env. Status already set to EXIT in the env_free()
@@ -468,6 +470,7 @@ void sched_kill_env(uint32 envId)
 			//lcr3(phys_page_directory);
 			//switchkvm();
 			//fos_scheduler();
+			acquire_kspinlock(&(ProcessQueues.qlock)); 	//CS on Qs
 			sched();
 		}
 	}
@@ -479,7 +482,7 @@ void sched_kill_env(uint32 envId)
 //=================================================
 void sched_print_all()
 {
-	acquire_spinlock(&(ProcessQueues.qlock)); 	//CS on Qs
+	acquire_kspinlock(&(ProcessQueues.qlock)); 	//CS on Qs
 	struct Env* ptr_env ;
 	if (!LIST_EMPTY(&ProcessQueues.env_new_queue))
 	{
@@ -522,7 +525,7 @@ void sched_print_all()
 	{
 		cprintf("No processes in EXIT queue\n");
 	}
-	release_spinlock(&(ProcessQueues.qlock)); 	//CS on Qs
+	release_kspinlock(&(ProcessQueues.qlock)); 	//CS on Qs
 }
 
 //=================================================
@@ -530,7 +533,7 @@ void sched_print_all()
 //=================================================
 void sched_run_all()
 {
-	acquire_spinlock(&(ProcessQueues.qlock)); 	//CS on Qs
+	acquire_kspinlock(&(ProcessQueues.qlock)); 	//CS on Qs
 	struct Env* ptr_env=NULL;
 
 	/*2023: Changed from LIST_FOREACH into DEQUEUE (based on suggestion from T52 & T73 2023.Term1)
@@ -543,7 +546,7 @@ void sched_run_all()
 		sched_insert_ready(ptr_env);
 	}
 
-	release_spinlock(&(ProcessQueues.qlock)); 	//CS on Qs
+	release_kspinlock(&(ProcessQueues.qlock)); 	//CS on Qs
 	/*2015*///if scheduler not run yet, then invoke it!
 	if (mycpu()->scheduler_status == SCH_STOPPED)
 		fos_scheduler();
@@ -556,7 +559,7 @@ void sched_run_all()
 //=================================================
 void sched_kill_all()
 {
-	acquire_spinlock(&(ProcessQueues.qlock)); 	//CS on Qs
+	acquire_kspinlock(&(ProcessQueues.qlock)); 	//CS on Qs
 	struct Env* ptr_env ;
 	if (!LIST_EMPTY(&ProcessQueues.env_new_queue))
 	{
@@ -626,7 +629,7 @@ void sched_kill_all()
 		/*2024: replaced by sched() to apply context_switch*/
 		sched();
 	}
-	release_spinlock(&(ProcessQueues.qlock)); 	//CS on Qs
+	release_kspinlock(&(ProcessQueues.qlock)); 	//CS on Qs
 	//get into the command prompt since there're no env to return back to it
 	//fos_scheduler(); //2024: commented
 	get_into_prompt();
@@ -639,7 +642,7 @@ void sched_kill_all()
 //=================================================
 void sched_exit_all_ready_envs()
 {
-	acquire_spinlock(&(ProcessQueues.qlock)); 	//CS on Qs
+	acquire_kspinlock(&(ProcessQueues.qlock)); 	//CS on Qs
 	struct Env* ptr_env=NULL;
 	for (int i = 0 ; i < num_of_ready_queues ; i++)
 	{
@@ -653,7 +656,7 @@ void sched_exit_all_ready_envs()
 			}
 		}
 	}
-	release_spinlock(&(ProcessQueues.qlock)); 	//CS on Qs
+	release_kspinlock(&(ProcessQueues.qlock)); 	//CS on Qs
 }
 
 /*2023*/
@@ -664,55 +667,38 @@ int64 timer_ticks()
 }
 int env_get_nice(struct Env* e)
 {
-	//BSD Scheduler - env_get_nice
-	//Your code is here
-	//Comment the following line
-	panic("Not implemented yet");
+	panic("Not implemented function");
 }
 
 void env_set_nice(struct Env* e, int nice_value)
 {
-	//BSD Scheduler - env_set_nice
-	//Your code is here
-	//Comment the following line
-	panic("Not implemented yet");
+	panic("Not implemented function");
 }
-
 int env_get_recent_cpu(struct Env* e)
 {
-	//BSD Scheduler - env_get_recent_cpu
-	//Your code is here
-	//Comment the following line
-	panic("Not implemented yet");
+	panic("Not implemented function");
 }
 int get_load_average()
 {
-	//return 1;
-	//BSD Scheduler - get_load_average
-	//Your code is here
-	//Comment the following line
-	panic("Not implemented yet");
-	return 0;
+	panic("Not implemented function");
 }
 /********* for BSD Priority Scheduler *************/
+
 //==================================================================================//
 
 /*2024*/
 /********* for Priority RR Scheduler *************/
 void env_set_priority(int envID, int priority)
 {
-	//Get the process of the given ID
-	struct Env* proc ;
-	envid2env(envID, &proc, 0);
-
+	//TODO: [PROJECT'25.IM#4] CPU SCHEDULING - #1 env_set_priority
 	//Your code is here
 	//Comment the following line
-	panic("Not implemented yet");
+	panic("env_set_priority() is not implemented yet...!!");
 }
-
 void sched_set_starv_thresh(uint32 starvThresh)
 {
+	//TODO: [PROJECT'25.IM#4] CPU SCHEDULING - #1 sched_set_starv_thresh
 	//Your code is here
 	//Comment the following line
-	panic("Not implemented yet");
+	panic("sched_set_starv_thresh() is not implemented yet...!!");
 }

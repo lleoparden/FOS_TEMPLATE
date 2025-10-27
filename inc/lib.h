@@ -11,6 +11,7 @@
 #include <inc/stdio.h>
 #include <inc/stdarg.h>
 #include <inc/string.h>
+#include <inc/queue.h>
 #include <inc/error.h>
 #include <inc/assert.h>
 #include <inc/x86.h>
@@ -20,6 +21,7 @@
 #include <inc/syscall.h>
 #include <inc/uheap.h>
 #include <inc/dynamic_allocator.h>
+#include <inc/uspinlock.h>
 
 #define USED(x)		(void)(x)
 #define RAND(s,e)	((sys_get_virtual_time().low % (e-s) + s))
@@ -38,7 +40,7 @@ void atomic_readline(const char *buf, char*);
 
 /*syscall.c*/
 //Cons
-void	sys_cputs(const char *string, uint32 len, uint8 printProgName);
+void	sys_cputs(const char *string, uint32 len, uint8 printProgName, int color);
 int		sys_cgetc(void);
 void 	sys_cputc(const char c);
 void 	sys_lock_cons(void);
@@ -57,7 +59,7 @@ void	sys_run_env(int32 envId);
 //Memory
 int 	__sys_allocate_page(void *va, int perm);
 int 	__sys_map_frame(int32 srcenv, void *srcva, int32 dstenv, void *dstva, int perm);
-int 	__sys_unmap_frame(int32 envid, void *va);
+int 	__sys_unmap_frame(uint32 va);
 uint32 	sys_calculate_required_frames(uint32 start_virtual_address, uint32 size);
 uint32 	sys_calculate_free_frames();
 uint32 	sys_calculate_modified_frames();
@@ -66,7 +68,7 @@ int		sys_calculate_pages_tobe_removed_ready_exit(uint32 WS_or_MEMORY_flag);
 void 	sys_scarce_memory();
 
 //Dynamic Allocator
-void* 	sys_sbrk(int increment);
+void* 	sys_sbrk(int numOfPages);
 //******************
 
 //User Heap
@@ -74,24 +76,22 @@ void 	sys_free_user_mem(uint32 virtual_address, uint32 size);
 void	sys_allocate_user_mem(uint32 virtual_address, uint32 size);
 void	sys_allocate_chunk(uint32 virtual_address, uint32 size, uint32 perms);
 void 	sys_move_user_mem(uint32 src_virtual_address, uint32 dst_virtual_address, uint32 size);
-uint32 	sys_isUHeapPlacementStrategyFIRSTFIT();
-uint32 	sys_isUHeapPlacementStrategyBESTFIT();
-uint32 	sys_isUHeapPlacementStrategyNEXTFIT();
-uint32 	sys_isUHeapPlacementStrategyWORSTFIT();
+uint32 	sys_get_uheap_strategy();
 void 	sys_set_uheap_strategy(uint32 heapStrategy);
+
+void sys_env_set_priority(int32 envID, int priority);
 
 //Page File
 int 	sys_pf_calculate_allocated_pages(void);
 
 //Semaphores
 
-
 //Sharing
 //2017
-int 	sys_createSharedObject(char* shareName, uint32 size, uint8 isWritable, void* virtual_address);
-int 	sys_getSizeOfSharedObject(int32 ownerID, char* shareName);
-int 	sys_getSharedObject(int32 ownerID, char* shareName, void* virtual_address );
-int 	sys_freeSharedObject(int32 sharedObjectID, void *startVA);
+int 	sys_create_shared_object(char* shareName, uint32 size, uint8 isWritable, void* virtual_address);
+int 	sys_size_of_shared_object(int32 ownerID, char* shareName);
+int 	sys_get_shared_object(int32 ownerID, char* shareName, void* virtual_address );
+int 	sys_delete_shared_object(int32 sharedObjectID, void *startVA);
 
 //etc...
 uint32	sys_rcr2();
@@ -109,6 +109,8 @@ int 	sys_check_LRU_lists_free(uint32* list_content, int list_size);
 int 	sys_check_WS_list(uint32* WS_list_content, int actual_WS_list_size, uint32 last_WS_element_content, bool chk_in_order);
 //2024
 void 	sys_utilities(char* utilityName, int value);
+//2025
+int 	sys_get_optimal_num_faults();
 
 /* concurrency.c */
 void env_sleep(uint32 apprxMilliSeconds);

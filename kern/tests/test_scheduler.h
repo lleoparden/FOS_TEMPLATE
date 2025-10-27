@@ -16,4 +16,8 @@ void test_bsd_nice_0();
 void test_bsd_nice_1();
 void test_bsd_nice_2();
 
+void test_priorityRR_0();
+void test_priorityRR_1();
+void test_priorityRR_2();
+
 #endif

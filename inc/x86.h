@@ -48,6 +48,10 @@ static __inline void write_esp(uint32 esp) __attribute__((always_inline));
 static __inline void write_ebp(uint32 ebp) __attribute__((always_inline));
 static __inline void cpuid(uint32 info, uint32 *eaxp, uint32 *ebxp, uint32 *ecxp, uint32 *edxp);
 static __inline uint64 read_tsc(void) __attribute__((always_inline));
+static inline __attribute__((always_inline)) struct uint64 get_virtual_time_user();
+
+
+#define RANDU(s,e)	((get_virtual_time_user().low % (e-s) + s))
 
 static __inline void
 breakpoint(void)
@@ -365,5 +369,17 @@ static __inline void lidt(struct Gatedesc *p, int size)
   pd[2] = (uint32)p >> 16;
 
   asm volatile("lidt (%0)" : : "r" (pd));
+}
+
+
+static inline __attribute__((always_inline)) struct uint64 get_virtual_time_user()
+{
+	struct uint64 result;
+
+	__asm __volatile("rdtsc\n"
+	: "=a" (result.low), "=d" (result.hi)
+	);
+
+	return result;
 }
 #endif /* !FOS_INC_X86_H */

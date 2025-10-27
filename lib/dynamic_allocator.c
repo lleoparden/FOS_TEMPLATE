@@ -8,191 +8,108 @@
 #include <inc/string.h>
 #include "../inc/dynamic_allocator.h"
 
-
 //==================================================================================//
 //============================== GIVEN FUNCTIONS ===================================//
 //==================================================================================//
-
-//=====================================================
-// 1) GET BLOCK SIZE (including size of its meta data):
-//=====================================================
-__inline__ uint32 get_block_size(void* va)
+//==================================
+// [1] GET PAGE VA:
+//==================================
+__inline__ uint32 to_page_va(struct PageInfoElement *ptrPageInfo)
 {
-	uint32 *curBlkMetaData = ((uint32 *)va - 1) ;
-	return (*curBlkMetaData) & ~(0x1);
+	//Get start VA of the page from the corresponding Page Info pointer
+	int idxInPageInfoArr = (ptrPageInfo - pageBlockInfoArr);
+	return dynAllocStart + (idxInPageInfoArr << PGSHIFT);
 }
-
-//===========================
-// 2) GET BLOCK STATUS:
-//===========================
-__inline__ int8 is_free_block(void* va)
-{
-	uint32 *curBlkMetaData = ((uint32 *)va - 1) ;
-	return (~(*curBlkMetaData) & 0x1) ;
-}
-
-//===========================
-// 3) ALLOCATE BLOCK:
-//===========================
-
-void *alloc_block(uint32 size, int ALLOC_STRATEGY)
-{
-	void *va = NULL;
-	switch (ALLOC_STRATEGY)
-	{
-	case DA_FF:
-		va = alloc_block_FF(size);
-		break;
-	case DA_NF:
-		va = alloc_block_NF(size);
-		break;
-	case DA_BF:
-		va = alloc_block_BF(size);
-		break;
-	case DA_WF:
-		va = alloc_block_WF(size);
-		break;
-	default:
-		cprintf("Invalid allocation strategy\n");
-		break;
-	}
-	return va;
-}
-
-//===========================
-// 4) PRINT BLOCKS LIST:
-//===========================
-
-void print_blocks_list(struct MemBlock_LIST list)
-{
-	cprintf("=========================================\n");
-	struct BlockElement* blk ;
-	cprintf("\nDynAlloc Blocks List:\n");
-	LIST_FOREACH(blk, &list)
-	{
-		cprintf("(size: %d, isFree: %d)\n", get_block_size(blk), is_free_block(blk)) ;
-	}
-	cprintf("=========================================\n");
-
-}
-//
-////********************************************************************************//
-////********************************************************************************//
 
 //==================================================================================//
 //============================ REQUIRED FUNCTIONS ==================================//
 //==================================================================================//
 
-bool is_initialized = 0;
 //==================================
 // [1] INITIALIZE DYNAMIC ALLOCATOR:
 //==================================
-void initialize_dynamic_allocator(uint32 daStart, uint32 initSizeOfAllocatedSpace)
+bool is_initialized = 0;
+void initialize_dynamic_allocator(uint32 daStart, uint32 daEnd)
 {
 	//==================================================================================
 	//DON'T CHANGE THESE LINES==========================================================
 	//==================================================================================
 	{
-		if (initSizeOfAllocatedSpace % 2 != 0) initSizeOfAllocatedSpace++; //ensure it's multiple of 2
-		if (initSizeOfAllocatedSpace == 0)
-			return ;
+		assert(daEnd <= daStart + DYN_ALLOC_MAX_SIZE);
 		is_initialized = 1;
 	}
 	//==================================================================================
 	//==================================================================================
-
-	//COMMENT THE FOLLOWING LINE BEFORE START CODING
-	panic("initialize_dynamic_allocator is not implemented yet");
-	//Your Code is Here...
+	//TODO: [PROJECT'25.GM#1] DYNAMIC ALLOCATOR - #1 initialize_dynamic_allocator
+	//Your code is here
+	//Comment the following line
+	panic("initialize_dynamic_allocator() Not implemented yet");
 
 }
-//==================================
-// [2] SET BLOCK HEADER & FOOTER:
-//==================================
-void set_block_data(void* va, uint32 totalSize, bool isAllocated)
+
+//===========================
+// [2] GET BLOCK SIZE:
+//===========================
+__inline__ uint32 get_block_size(void *va)
 {
-	//COMMENT THE FOLLOWING LINE BEFORE START CODING
-	panic("set_block_data is not implemented yet");
-	//Your Code is Here...
+	//TODO: [PROJECT'25.GM#1] DYNAMIC ALLOCATOR - #2 get_block_size
+	//Your code is here
+	//Comment the following line
+	panic("get_block_size() Not implemented yet");
 }
 
-
-//=========================================
-// [3] ALLOCATE BLOCK BY FIRST FIT:
-//=========================================
-void *alloc_block_FF(uint32 size)
+//===========================
+// 3) ALLOCATE BLOCK:
+//===========================
+void *alloc_block(uint32 size)
 {
 	//==================================================================================
 	//DON'T CHANGE THESE LINES==========================================================
 	//==================================================================================
 	{
-		if (size % 2 != 0) size++;	//ensure that the size is even (to use LSB as allocation flag)
-		if (size < DYN_ALLOC_MIN_BLOCK_SIZE)
-			size = DYN_ALLOC_MIN_BLOCK_SIZE ;
-		if (!is_initialized)
-		{
-			uint32 required_size = size + 2*sizeof(int) /*header & footer*/ + 2*sizeof(int) /*da begin & end*/ ;
-			uint32 da_start = (uint32)sbrk(ROUNDUP(required_size, PAGE_SIZE)/PAGE_SIZE);
-			uint32 da_break = (uint32)sbrk(0);
-			initialize_dynamic_allocator(da_start, da_break - da_start);
-		}
+		assert(size <= DYN_ALLOC_MAX_BLOCK_SIZE);
+	}
+	//==================================================================================
+	//==================================================================================
+	//TODO: [PROJECT'25.GM#1] DYNAMIC ALLOCATOR - #3 alloc_block
+	//Your code is here
+	//Comment the following line
+	panic("alloc_block() Not implemented yet");
+
+	//TODO: [PROJECT'25.BONUS#1] DYNAMIC ALLOCATOR - block if no free block
+}
+
+//===========================
+// [4] FREE BLOCK:
+//===========================
+void free_block(void *va)
+{
+	//==================================================================================
+	//DON'T CHANGE THESE LINES==========================================================
+	//==================================================================================
+	{
+		assert((uint32)va >= dynAllocStart && (uint32)va < dynAllocEnd);
 	}
 	//==================================================================================
 	//==================================================================================
 
-	//COMMENT THE FOLLOWING LINE BEFORE START CODING
-	panic("alloc_block_FF is not implemented yet");
-	//Your Code is Here...
-
-}
-//=========================================
-// [4] ALLOCATE BLOCK BY BEST FIT:
-//=========================================
-void *alloc_block_BF(uint32 size)
-{
-	//COMMENT THE FOLLOWING LINE BEFORE START CODING
-	panic("alloc_block_BF is not implemented yet");
-	//Your Code is Here...
-
+	//TODO: [PROJECT'25.GM#1] DYNAMIC ALLOCATOR - #4 free_block
+	//Your code is here
+	//Comment the following line
+	panic("free_block() Not implemented yet");
 }
 
-//===================================================
-// [5] FREE BLOCK WITH COALESCING:
-//===================================================
-void free_block(void *va)
-{
-	//COMMENT THE FOLLOWING LINE BEFORE START CODING
-	panic("free_block is not implemented yet");
-	//Your Code is Here...
-}
+//==================================================================================//
+//============================== BONUS FUNCTIONS ===================================//
+//==================================================================================//
 
-//=========================================
-// [6] REALLOCATE BLOCK BY FIRST FIT:
-//=========================================
-void *realloc_block_FF(void* va, uint32 new_size)
+//===========================
+// [1] REALLOCATE BLOCK:
+//===========================
+void *realloc_block(void* va, uint32 new_size)
 {
-	//COMMENT THE FOLLOWING LINE BEFORE START CODING
-	panic("realloc_block_FF is not implemented yet");
-	//Your Code is Here...
-}
-
-/*********************************************************************************************/
-/*********************************************************************************************/
-/*********************************************************************************************/
-//=========================================
-// [7] ALLOCATE BLOCK BY WORST FIT:
-//=========================================
-void *alloc_block_WF(uint32 size)
-{
-	panic("alloc_block_WF is not implemented yet");
-	return NULL;
-}
-
-//=========================================
-// [8] ALLOCATE BLOCK BY NEXT FIT:
-//=========================================
-void *alloc_block_NF(uint32 size)
-{
-	panic("alloc_block_NF is not implemented yet");
-	return NULL;
+	//TODO: [PROJECT'25.BONUS#2] KERNEL REALLOC - realloc_block
+	//Your code is here
+	//Comment the following line
+	panic("realloc_block() Not implemented yet");
 }

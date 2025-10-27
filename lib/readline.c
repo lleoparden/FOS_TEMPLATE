@@ -73,5 +73,3 @@ void atomic_readline(const char *prompt, char* buf)
 	}
 	sys_unlock_cons();
 }
-
-

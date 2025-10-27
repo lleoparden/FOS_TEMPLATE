@@ -5,6 +5,7 @@
 #include <inc/types.h>
 #include <inc/assert.h>
 #include <kern/conc/channel.h>
+#include <kern/conc/sleeplock.h>
 #include <kern/conc/ksemaphore.h>
 
 #define SECTSIZE	512			// bytes per disk sector
@@ -24,9 +25,19 @@ void ide_init();
 int	ide_read(uint32 secno, void *dst, uint32 nsecs);
 int	ide_write(uint32 secno, const void *src, uint32 nsecs);
 
-#define DISK_INT_BLK_METHOD LCK_SLEEP 	//Specify the method of handling the block/release on DISK
+
+#define PROGRAMMED_IO 	1
+#define INT_SLEEP 		2
+#define INT_SEMAPHORE 	3
+
+#define DISK_IO_METHOD PROGRAMMED_IO 	//Specify the method of handling the block/release on DISK
+
+#if DISK_IO_METHOD == INT_SLEEP
 struct Channel DISKchannel;				//channel of waiting for DISK
 struct spinlock DISKlock;				//spinlock to protect the DISKchannel
+struct sleeplock DISKmutex;				//mutex on ide_read/write
+#elif DISK_IO_METHOD == INT_SEMAPHORE
 struct ksemaphore DISKsem;				//semaphore to manage DISK interrupts
-
+struct ksemaphore DISKmutex;			//mutex on ide_read/write
+#endif
 #endif	// !DISK_H

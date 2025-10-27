@@ -30,6 +30,7 @@ struct Test tests[] = {
 		{"priority2", "Tests the priority of the program (Normal and Lower)", tst_priority2},
 		{"mlfq_sc4","Scenario#4: MLFQ",tst_sc_MLFQ },
 		{"bsd_nice", "BSD Scheduler: check order of running multiple instances of same program with different nice values", tst_bsd_nice},
+		{"priorityRR", "Priority RR Scheduler: check order of running multiple instances of same program with different priority values", tst_priorityRR},
 
 		//2022
 		{"str2lower", "Test str2lower function", tst_str2lower},
@@ -133,10 +134,10 @@ int tst_sc_MLFQ(int number_of_arguments, char **arguments)
 	int cnt = 0 ;
 	int firstTime = 1;
 	struct Env *e ;
-	acquire_spinlock(&ProcessQueues.qlock);
+	acquire_kspinlock(&ProcessQueues.qlock);
 	{
 		LIST_FOREACH(e, &ProcessQueues.env_exit_queue)
-			{
+									{
 			if (strcmp(e->prog_name, "tmlfq_2") == 0)
 			{
 				if (firstTime)
@@ -145,7 +146,7 @@ int tst_sc_MLFQ(int number_of_arguments, char **arguments)
 			}
 			else if (!firstTime)
 				break;
-			}
+									}
 		if(cnt == numOfSlave2)
 		{
 			cprintf("Congratulations... MLFQScenario# completed successfully\n");
@@ -155,7 +156,7 @@ int tst_sc_MLFQ(int number_of_arguments, char **arguments)
 			panic("MLFQScenario# failed\n");
 		}
 	}
-	release_spinlock(&ProcessQueues.qlock);
+	release_kspinlock(&ProcessQueues.qlock);
 	return 0;
 }
 
@@ -184,6 +185,29 @@ int tst_bsd_nice(int number_of_arguments, char **arguments)
 	return 0;
 }
 
+/*2024*/
+int tst_priorityRR(int number_of_arguments, char **arguments)
+{
+	if (number_of_arguments != 2)
+	{
+		cprintf("Invalid number of arguments! USAGE: tst priorityRR <testnumber>\n");
+		return 0;
+	}
+	int testNumber = strtol(arguments[1], NULL, 10);
+	switch (testNumber)
+	{
+	case 0:
+		test_priorityRR_0();
+		break;
+	case 1:
+		test_priorityRR_1();
+		break;
+	case 2:
+		test_priorityRR_2();
+		break;
+	}
+	return 0;
+}
 int tst_str2lower(int number_of_arguments, char **arguments)
 {
 	if (number_of_arguments != 1)
@@ -214,6 +238,12 @@ int tst_dyn_alloc(int number_of_arguments, char **arguments)
 	{
 		test_initialize_dynamic_allocator();
 	}
+	// Test 2 Example for alloc_block: tst dynalloc alloc
+	else if(strcmp(arguments[1], "alloc") == 0)
+	{
+		test_alloc_block();
+	}
+	/*
 	// Test 2 Example for alloc_block_FF: tstdynalloc allocFF
 	else if(strcmp(arguments[1], "allocff") == 0)
 	{
@@ -229,7 +259,13 @@ int tst_dyn_alloc(int number_of_arguments, char **arguments)
 	{
 		test_alloc_block_NF();
 	}
-	// Test 5 Example for free_block: tstdynalloc freeFF
+	 */
+	// Test 5 Example for free_block: tst dynalloc free
+	else if(strcmp(arguments[1], "free") == 0)
+	{
+		test_free_block();
+	}
+	/*	// Test 5 Example for free_block: tstdynalloc freeFF
 	else if(strcmp(arguments[1], "freeff") == 0)
 	{
 		test_free_block_FF();
@@ -243,12 +279,11 @@ int tst_dyn_alloc(int number_of_arguments, char **arguments)
 	else if(strcmp(arguments[1], "freenf") == 0)
 	{
 		test_free_block_NF();
-	}
-	// Test 8 Example for realloc_block_ff: tstdynalloc reallocFF
-	else if(strcmp(arguments[1], "reallocff") == 0)
+	}*/
+	// Test 8 Example for realloc_block: tst dynalloc realloc
+	else if(strcmp(arguments[1], "realloc") == 0)
 	{
-		test_realloc_block_FF();
-		//test_realloc_block_FF_COMPLETE();
+		test_realloc_block();
 	}
 	return 0;
 }
@@ -257,7 +292,7 @@ int tst_chunks(int number_of_arguments, char **arguments)
 {
 	if (number_of_arguments != 2)
 	{
-		cprintf("Invalid number of arguments! USAGE: tst chunk <testname>\n") ;
+		cprintf("Invalid number of arguments! USAGE: tst chunks <testname>\n") ;
 		return 0;
 	}
 	// CUT-PASTE Test
@@ -335,17 +370,61 @@ int tst_paging_manipulation(int number_of_arguments, char **arguments)
 
 int tst_kheap(int number_of_arguments, char **arguments)
 {
+#if !USE_KHEAP
+	panic("MUST ENABLE KHEAP");
+	return 0;
+#endif
 	// Parameters Validation Checking
 	if (strcmp(arguments[2], "kmalloc") == 0 && number_of_arguments != 4)
 	{
-		cprintf("Invalid number of arguments! USAGE: tst kheap <Strategy> kmalloc <1 or 2 or 3>\n") ;
+		cprintf("Invalid number of arguments! USAGE: tst kheap <Strategy> kmalloc <both or blk or page>\n") ;
 		return 0;
 	}
-	if (strcmp(arguments[2], "kmalloc") != 0 && number_of_arguments != 3)
+	else if (strcmp(arguments[2], "fast") == 0 && number_of_arguments != 3)
 	{
-		if (strcmp(arguments[2], "krealloc") != 0 && number_of_arguments != 5)
+		cprintf("Invalid number of arguments! USAGE: tst kheap <Strategy> fast\n") ;
+		return 0;
+	}
+	else if (strcmp(arguments[2], "kfree") == 0 && number_of_arguments != 4)
+	{
+		cprintf("Invalid number of arguments! USAGE: tst kheap <Strategy> kfree <both or blk or page>\n") ;
+		return 0;
+	}
+	else if (strcmp(arguments[2], "kvirtaddr") == 0 && number_of_arguments != 2)
+	{
+		cprintf("Invalid number of arguments! USAGE: tst kheap kvirtaddr\n") ;
+		return 0;
+	}
+	else if (strcmp(arguments[2], "kphysaddr") == 0 && number_of_arguments != 2)
+	{
+		cprintf("Invalid number of arguments! USAGE: tst kheap kphysaddr\n") ;
+		return 0;
+	}
+	else if (strcmp(arguments[2], "krealloc") == 0 && number_of_arguments != 4)
+	{
+		cprintf("Invalid number of arguments! USAGE: tst kheap <Strategy> krealloc <both or blk or page>\n") ;
+		return 0;
+	}
+
+	// Specify Test Type [ig any]
+	uint32 testType = 0;
+	if (number_of_arguments == 4)
+	{
+		if (strcmp(arguments[3], "page") == 0)
 		{
-			cprintf("Invalid number of arguments! USAGE: tst kheap <Strategy> <testname>\n") ;
+			testType = TST_PAGE_ALLOC;
+		}
+		else if (strcmp(arguments[3], "blk") == 0)
+		{
+			testType = TST_BLOCK_ALLOC;
+		}
+		else if (strcmp(arguments[3], "both") == 0)
+		{
+			testType = TST_BOTH_ALLOC;
+		}
+		else
+		{
+			cprintf("Invalid Allocator Type! <both or blk or page>\n") ;
 			return 0;
 		}
 	}
@@ -353,140 +432,70 @@ int tst_kheap(int number_of_arguments, char **arguments)
 	// Setting Strategy
 	if(strcmp(arguments[1], "FF") == 0 || strcmp(arguments[1], "ff") == 0)
 	{
-		setKHeapPlacementStrategyFIRSTFIT();
+		set_kheap_strategy(KHP_PLACE_FIRSTFIT);
 		cprintf("Kernel Heap placement strategy is FIRST FIT\n");
 	}
 	else if(strcmp(arguments[1], "BF") == 0 || strcmp(arguments[1], "bf") == 0)
 	{
-		setKHeapPlacementStrategyBESTFIT();
+		set_kheap_strategy(KHP_PLACE_BESTFIT);
 		cprintf("Kernel Heap placement strategy is BEST FIT\n");
 	}
 	else if(strcmp(arguments[1], "NF") == 0 || strcmp(arguments[1], "nf") == 0)
 	{
-		setKHeapPlacementStrategyNEXTFIT();
+		set_kheap_strategy(KHP_PLACE_NEXTFIT);
 		cprintf("Kernel Heap placement strategy is NEXT FIT\n");
 	}
-
-	// Test 1-kmalloc: tst kheap FF kmalloc 1
+	else if(strcmp(arguments[1], "WF") == 0 || strcmp(arguments[1], "wf") == 0)
+	{
+		set_kheap_strategy(KHP_PLACE_WORSTFIT);
+		cprintf("Kernel Heap placement strategy is WORST FIT\n");
+	}
+	else if(strcmp(arguments[1], "CF") == 0 || strcmp(arguments[1], "cf") == 0)
+	{
+		set_kheap_strategy(KHP_PLACE_CUSTOMFIT);
+		cprintf("Kernel Heap placement strategy is CUSTOM FIT\n");
+	}
+	// Test 1-kmalloc: tst kheap <Strategy> kmalloc <allocator>
 	if(strcmp(arguments[2], "kmalloc") == 0)
 	{
-		uint32 testNum = strtol(arguments[3], NULL, 10);
-		if(isKHeapPlacementStrategyFIRSTFIT())
-		{
-			if (testNum == 0)
-			{
-				cprintf("Error: [Kernel.FirstFit] must specify the test number (1 or 2) as an argument\n");
-				return 0;
-			}
-			//Test FIRST FIT allocation
-			if (testNum == 1)
-				test_kmalloc();
-			else if (testNum == 2)
-				test_kmalloc_firstfit1();
-			else if (testNum == 3)
-				test_kmalloc_firstfit2();
-		}
-		else if(isKHeapPlacementStrategyBESTFIT())
-		{
-			if (testNum == 0)
-			{
-				cprintf("Error: [Kernel.BestFit] must specify the test number (1, 2, 3) as an argument\n");
-				return 0;
-			}
-			if (testNum == 1)
-				test_kmalloc();
-			else if (testNum == 2)
-				test_kmalloc_bestfit1();
-			else if (testNum == 3)
-				test_kmalloc_bestfit2();
-		}
-		else if(isKHeapPlacementStrategyNEXTFIT())
-		{
-			if (testNum == 0)
-			{
-				cprintf("Error: [Kernel.NextFit] must specify the test number (1 or 2) as an argument\n");
-				return 0;
-			}
-			//Test cont. allocation
-			if (testNum == 1)
-				test_kmalloc();
-			//Test nextfit strategy
-			else if (testNum == 2)
-				test_kmalloc_nextfit();
-		}
+		test_kmalloc(testType);
 		return 0;
 	}
-	// Test Fast Implementation of kmalloc/kfree FF
+	// Test Fast Implementation of kmalloc/kfree: tst kheap <Startegy> fast
 	else if(strcmp(arguments[2], "fast") == 0)
 	{
-		if(isKHeapPlacementStrategyFIRSTFIT())
-		{
-			test_fastfirstfit();
-		}
-		else
-		{
-			panic("Fast implementation test is not yet handled for other strategies");
-		}
+		test_fast_page_alloc();
 		return 0;
 	}
-	// Test 2-kfree: tst kheap FF kfree
+	// Test 2-kfree: tst kheap <Strategy> kfree <allocator>
 	else if(strcmp(arguments[2], "kfree") == 0)
 	{
-		if (isKHeapPlacementStrategyBESTFIT() || isKHeapPlacementStrategyFIRSTFIT())
-		{
-			test_kfree_bestfirstfit();
-		}
-		else //NEXT & CONT
-		{
-			test_kfree();
-		}
+		test_kfree(testType);
 		return 0;
 	}
-	// Test 3-kphysaddr: tst kheap FF kphysaddr
+	// Test 3-kphysaddr: tst kheap kphysaddr
 	else if(strcmp(arguments[2], "kphysaddr") == 0)
 	{
 		test_kheap_phys_addr();
 		return 0;
 	}
-	// Test 4-kvirtaddr: tst kheap FF kvirtaddr
+	// Test 4-kvirtaddr: tst kheap kvirtaddr
 	else if(strcmp(arguments[2], "kvirtaddr") == 0)
 	{
 		test_kheap_virt_addr();
 		return 0;
 	}
-	// Test 5-krealloc: tst kheap BF krealloc
+	// Test 5-krealloc: tst kheap <Strategy> krealloc <allocator>
 	else if(strcmp(arguments[2], "krealloc") == 0)
 	{
-		uint32 testNum = strtol(arguments[3], NULL, 10);
-		if(isKHeapPlacementStrategyFIRSTFIT())
-		{
-			if (testNum == 0)
-			{
-				cprintf("Error: [Kernel.FirstFit] must specify the test number (1 or 2) as an argument\n");
-				return 0;
-			}
-			if (testNum==1)
-				test_krealloc_FF1();
-			else if (testNum==2)
-				test_krealloc_FF2();
-			else if (testNum==3)
-				test_krealloc_FF3();
-		}
-		if (isKHeapPlacementStrategyNEXTFIT())
-		{
-			test_krealloc();
-		}
-		if (isKHeapPlacementStrategyBESTFIT())
-		{
-			test_krealloc_BF();
-		}
+		test_krealloc(testType);
 		return 0;
 	}
-	// Test 6-sbr: tst kheap FF sbrk
+	/*	// Test 6-sbr: tst kheap FF sbrk
 	else if (strcmp(arguments[2], "sbrk") == 0)
 	{
 		test_ksbrk();
-	}
+	}*/
 	return 0;
 }
 

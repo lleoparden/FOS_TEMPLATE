@@ -14,24 +14,28 @@
 
 void init_ksemaphore(struct ksemaphore *ksem, int value, char *name)
 {
-	//COMMENT THE FOLLOWING LINE BEFORE START CODING
-	panic("init_ksemaphore is not implemented yet");
-	//Your Code is Here...
+	init_channel(&(ksem->chan), "ksemaphore channel");
+	init_kspinlock(&(ksem->lk), "lock of ksemaphore");
+	strcpy(ksem->name, name);
+	ksem->count = value;
 }
 
 void wait_ksemaphore(struct ksemaphore *ksem)
 {
-	//COMMENT THE FOLLOWING LINE BEFORE START CODING
-	panic("wait_ksemaphore is not implemented yet");
-	//Your Code is Here...
+	//TODO: [PROJECT'25.IM#5] KERNEL PROTECTION: #6 SEMAPHORE - wait_ksemaphore
+	//Your code is here
+	//Comment the following line
+	panic("wait_ksemaphore() is not implemented yet...!!");
 
 }
 
 void signal_ksemaphore(struct ksemaphore *ksem)
 {
-	//COMMENT THE FOLLOWING LINE BEFORE START CODING
-	panic("signal_ksemaphore is not implemented yet");
-	//Your Code is Here...
+	//TODO: [PROJECT'25.IM#5] KERNEL PROTECTION: #7 SEMAPHORE - signal_ksemaphore
+	//Your code is here
+	//Comment the following line
+	panic("signal_ksemaphore() is not implemented yet...!!");
+
 }
 
 

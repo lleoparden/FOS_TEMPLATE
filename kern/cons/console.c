@@ -157,14 +157,15 @@ cga_init(void)
 
 //2016: Preliminary backward and forward cursor movement was added to FOS
 // 		Thanks to student Abdullah Mohammad Ma3en, 3rd year, and TA Ghada Hamed.
-
 void
 cga_putc(int c)
 {
-	// if no attribute given, then use black on white
+	// if no attribute given, then use the text color
 	if (!(c & ~0xFF))
-		c |= 0x0700;
-
+	{
+		c |= current_text_color == 0? 0x700 : current_text_color;
+		//c |= 0x700; /*black and white*/
+	}
 	switch (c & 0xff) {
 	case '\b':
 		if (crt_pos > 0) {
@@ -186,11 +187,11 @@ cga_putc(int c)
 		cons_putc(' ');
 		cons_putc(' ');
 		break;
-	case 228:
+	case KEY_LF:
 		if(crt_pos>0)
 			crt_pos--;
 		break;
-	case 229:
+	case KEY_RT:
 		if (crt_pos < CRT_SIZE)
 			crt_pos++;
 		break;
@@ -387,7 +388,7 @@ kbd_init(void)
 	if (KBD_INT_BLK_METHOD == LCK_SLEEP)
 	{
 		init_channel(&KBDchannel, "keyboard channel");
-		init_spinlock(&KBDlock, "keyboard channel lock");
+		init_kspinlock(&KBDlock, "keyboard channel lock");
 	}
 	else if (KBD_INT_BLK_METHOD == LCK_SEMAPHORE)
 	{
@@ -518,6 +519,19 @@ iscons(int fdnum)
 {
 	// used by readline
 	return 1;
+}
+
+// *************** This clear screen feature is implemented by *************
+// ********* Abd-Alrahman Zedan From Team Frozen-Bytes - FCIS'24-25 ********
+void
+clear_screen_buffer(void)
+{
+	// accessing the screen buffer in the memory
+	uint32 *crt_buf = (uint32*)(KERNEL_BASE + CGA_BUF);
+	// setting the screen buffer content to spaces with black background
+	for (int i = 0; i < CRT_SIZE; i++)
+		crt_buf[i] = 0x0700 | ' ';
+	crt_pos = 0; // reset_cursor_position
 }
 
 /*Keyboard Interrupt Service Routine */

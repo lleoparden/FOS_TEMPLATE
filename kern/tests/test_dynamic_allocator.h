@@ -11,16 +11,12 @@
 # error "This is a FOS kernel header; user programs should not #include it"
 #endif
 
-//2022
+/*2025*/
 int  test_initialize_dynamic_allocator();
-void test_alloc_block_FF();
-void test_alloc_block_BF();
-void test_alloc_block_NF();
-void test_free_block_FF();
-void test_free_block_BF();
-void test_free_block_NF();
-void test_realloc_block_FF_COMPLETE();
-void test_realloc_block_FF();
+void test_alloc_block();
+void test_free_block();
+void test_realloc_block();
+int check_dynalloc_datastruct(void* va, void* expectedVA, uint32 expectedSize, uint8 expectedFlag);
 
 
 #endif /* KERN_TESTS_TEST_DYNAMIC_ALLOCATOR_H_ */

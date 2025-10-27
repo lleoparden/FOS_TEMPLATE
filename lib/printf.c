@@ -10,6 +10,8 @@
 #include <inc/stdarg.h>
 #include <inc/lib.h>
 
+int curTextClr;	 /*2025*/
+
 // Collect up to 256 characters into a buffer
 // and perform ONE system call to print all of them,
 // in order to make the lines output to the console atomic
@@ -24,7 +26,7 @@ struct printbuf {
 static void putch(int ch, struct printbuf *b) {
 	b->buf[b->idx++] = ch;
 	if (b->idx == 256 - 1) {
-		sys_cputs(b->buf, b->idx, printProgName);
+		sys_cputs(b->buf, b->idx, printProgName, curTextClr);
 		b->idx = 0;
 	}
 	b->cnt++;
@@ -36,7 +38,7 @@ int vcprintf(const char *fmt, va_list ap) {
 	b.idx = 0;
 	b.cnt = 0;
 	vprintfmt((void*) putch, &b, fmt, ap);
-	sys_cputs(b.buf, b.idx, printProgName);
+	sys_cputs(b.buf, b.idx, printProgName, curTextClr);
 
 	printProgName = 0;
 	return b.cnt;
@@ -51,6 +53,21 @@ int cprintf(const char *fmt, ...) {
 	va_start(ap, fmt);
 	cnt = vcprintf(fmt, ap);
 	va_end(ap);
+
+	return cnt;
+}
+
+// *************** This text coloring feature is implemented by *************
+// ********** Abd-Alrahman Zedan From Team Frozen-Bytes - FCIS'24-25 ********
+int cprintf_colored(int textClr, const char *fmt, ...) {
+	va_list ap;
+	int cnt;
+	printProgName = 1 ;
+	curTextClr = (textClr << 8) ; //set text color by the given value
+	va_start(ap, fmt);
+	cnt = vcprintf(fmt, ap);
+	va_end(ap);
+	curTextClr = TEXT_DEFAULT_CLR; //restore default color
 
 	return cnt;
 }

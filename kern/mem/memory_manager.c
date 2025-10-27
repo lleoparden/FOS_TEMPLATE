@@ -27,6 +27,8 @@ FUNCTIONS:	to_physical_address, get_frame_info, tlb_invalidate
 #include "kheap.h"
 
 
+
+
 void tlb_invalidate(uint32 *ptr_page_directory, void *virtual_address)
 {
 	// Flush the entry only if we're modifying the current address space.
@@ -71,7 +73,7 @@ void initialize_paging()
 	LIST_INIT(&MemFrameLists.modified_frame_list);
 
 	//Initialize the corresponding lock
-	init_spinlock(&MemFrameLists.mfllock, "Frame Info Lock");
+	init_kspinlock(&MemFrameLists.mfllock, "Frame Info Lock");
 
 	frames_info[0].references = 1;
 	frames_info[1].references = 1;
@@ -145,36 +147,32 @@ void initialize_frame_info(struct FrameInfo *ptr_frame_info)
 // Hint: references should not be incremented
 int allocate_frame(struct FrameInfo **ptr_frame_info)
 {
-	//cprintf("allocate_frame...\n");
-
-	bool lock_already_held = holding_spinlock(&MemFrameLists.mfllock);
+	bool lock_already_held = holding_kspinlock(&MemFrameLists.mfllock);
 
 	if (!lock_already_held)
 	{
-		acquire_spinlock(&MemFrameLists.mfllock);
+		acquire_kspinlock(&MemFrameLists.mfllock);
 	}
 
 	*ptr_frame_info = LIST_FIRST(&MemFrameLists.free_frame_list);
 	int c = 0;
+
 	if (*ptr_frame_info == NULL)
 	{
-		//Free RAM when it's FULL
 		panic("ERROR: Kernel run out of memory... allocate_frame cannot find a free frame.\n");
-		// When allocating new frame, if there's no free frame, then you can do any of the following:
-		//	1-	If any process has exited (those with status ENV_EXIT), then remove one or more of these exited processes from the main memory
-		//	2-	free at least 1 frame from the user working set by applying the replacement algorithm
-		//  3-  Suspend (swap-out) any blocked or ready process(es) on disk
 	}
 
 	LIST_REMOVE(&MemFrameLists.free_frame_list,*ptr_frame_info);
 
 	/******************* PAGE BUFFERING CODE *******************
 	 ***********************************************************/
+
 	if((*ptr_frame_info)->isBuffered)
 	{
-		pt_clear_page_table_entry((*ptr_frame_info)->proc->env_page_directory,(*ptr_frame_info)->bufferedVA);
-		//pt_set_page_permissions((*ptr_frame_info)->environment->env_pgdir, (*ptr_frame_info)->va, 0, PERM_BUFFERED);
+		/*MUST UN-COMMENT THIS LINE*/
+		//pt_clear_page_table_entry((*ptr_frame_info)->proc->env_page_directory,(*ptr_frame_info)->va);
 	}
+
 	/**********************************************************
 	 ***********************************************************/
 
@@ -182,7 +180,7 @@ int allocate_frame(struct FrameInfo **ptr_frame_info)
 
 	if (!lock_already_held)
 	{
-		release_spinlock(&MemFrameLists.mfllock);
+		release_kspinlock(&MemFrameLists.mfllock);
 	}
 
 	return 0;
@@ -194,11 +192,11 @@ int allocate_frame(struct FrameInfo **ptr_frame_info)
 //
 void free_frame(struct FrameInfo *ptr_frame_info)
 {
-	bool lock_already_held = holding_spinlock(&MemFrameLists.mfllock);
+	bool lock_already_held = holding_kspinlock(&MemFrameLists.mfllock);
 
 	if (!lock_already_held)
 	{
-		acquire_spinlock(&MemFrameLists.mfllock);
+		acquire_kspinlock(&MemFrameLists.mfllock);
 	}
 	{
 		/*2012: clear it to ensure that its members (env, isBuffered, ...) become NULL*/
@@ -210,7 +208,7 @@ void free_frame(struct FrameInfo *ptr_frame_info)
 	}
 	if (!lock_already_held)
 	{
-		release_spinlock(&MemFrameLists.mfllock);
+		release_kspinlock(&MemFrameLists.mfllock);
 	}
 }
 
@@ -235,14 +233,17 @@ void decrement_references(struct FrameInfo* ptr_frame_info)
 
 int get_page_table(uint32 *ptr_page_directory, const uint32 virtual_address, uint32 **ptr_page_table)
 {
+	//	cprintf("gpt .05\n");
 	uint32 page_directory_entry = ptr_page_directory[PDX(virtual_address)];
 
 	//2022: check PERM_PRESENT of the table first before calculating its PA
 	if ( (page_directory_entry & PERM_PRESENT) == PERM_PRESENT)
 	{
+		//	cprintf("gpt .07, page_directory_entry= %x \n",page_directory_entry);
 		if(USE_KHEAP && !CHECK_IF_KERNEL_ADDRESS(virtual_address))
 		{
 			*ptr_page_table = (void *)kheap_virtual_address(EXTRACT_ADDRESS(page_directory_entry)) ;
+			//cprintf("===>get_page_table: page_dir_entry = %x ptr_page_table = %x\n", page_directory_entry,*ptr_page_table);
 		}
 		else
 		{
@@ -254,10 +255,13 @@ int get_page_table(uint32 *ptr_page_directory, const uint32 virtual_address, uin
 	{
 		// Put the faulted address in CR2 and then
 		// Call the fault_handler() to load the table in memory for us ...
+		//		cprintf("gpt .1\n, %x page_directory_entry\n", page_directory_entry);
 		lcr2((uint32)virtual_address) ;
 
+		//		cprintf("gpt .12\n");
 		fault_handler(NULL);
 
+		//		cprintf("gpt .15\n");
 		// now the page_fault_handler() should have returned successfully and updated the
 		// directory with the new table frame number in memory
 		page_directory_entry = ptr_page_directory[PDX(virtual_address)];
@@ -274,6 +278,7 @@ int get_page_table(uint32 *ptr_page_directory, const uint32 virtual_address, uin
 	}
 	else // there is no table for this va anywhere. This is a new table required, so check if the user want creation
 	{
+		//		cprintf("gpt .2\n");
 		*ptr_page_table = 0;
 		return TABLE_NOT_EXIST;
 	}
@@ -281,7 +286,7 @@ int get_page_table(uint32 *ptr_page_directory, const uint32 virtual_address, uin
 
 void * create_page_table(uint32 *ptr_directory, const uint32 virtual_address)
 {
-#if USE_KHEAP
+	//[Kernel Dynamic Allocation] create_page_table()
 	// Write your code here, remove the panic and write your code
 	//panic("create_page_table() is not implemented yet...!!");
 
@@ -293,6 +298,7 @@ void * create_page_table(uint32 *ptr_directory, const uint32 virtual_address)
 
 	//change this "return" according to your answer
 
+#if USE_KHEAP
 	uint32 * ptr_page_table = kmalloc(PAGE_SIZE);
 	//cprintf("new table is created==================\n");
 	if(ptr_page_table == NULL)
@@ -354,6 +360,21 @@ int map_frame(uint32 *ptr_page_directory, struct FrameInfo *ptr_frame_info, uint
 	uint32 *ptr_page_table;
 	if( get_page_table(ptr_page_directory, virtual_address, &ptr_page_table) == TABLE_NOT_EXIST)
 	{
+		/*==========================================================================================
+		// OLD WRONG SOLUTION
+		//=====================
+		//// initiate a read instruction for an address inside the wanted table.
+		//// this will generate a page fault, that will cause page_fault_handler() to
+		//// create the table in memory for us ...
+		//char dummy_char = *((char*)virtual_address) ;
+		//// a page fault is created now and page_fault_handler() should start handling the fault ...
+
+		//// now the page_fault_handler() should have returned successfully and updated the
+		//// directory with the new table frame number in memory
+		//uint32 page_directory_entry;
+		//page_directory_entry = ptr_page_directory[PDX(virtual_address)];
+		//ptr_page_table = STATIC_KERNEL_VIRTUAL_ADDRESS(EXTRACT_ADDRESS(page_directory_entry)) ;
+		=============================================================================================*/
 #if USE_KHEAP
 		{
 			ptr_page_table = create_page_table(ptr_page_directory, (uint32)virtual_address);
@@ -372,6 +393,18 @@ int map_frame(uint32 *ptr_page_directory, struct FrameInfo *ptr_frame_info, uint
 	//cprintf("NOW .. map add = %x ptr_page_table = %x PTX(virtual_address) = %d\n", virtual_address, ptr_page_table,PTX(virtual_address));
 	uint32 page_table_entry = ptr_page_table[PTX(virtual_address)];
 
+	/*OLD WRONG SOLUTION
+	if( EXTRACT_ADDRESS(page_table_entry) != physical_address)
+	{
+		if( page_table_entry != 0)
+		{
+			unmap_frame(ptr_page_directory , virtual_address);
+		}
+		ptr_frame_info->references++;
+		ptr_page_table[PTX(virtual_address)] = CONSTRUCT_ENTRY(physical_address , perm | PERM_PRESENT);
+
+	}*/
+
 	/*NEW'15 CORRECT SOLUTION*/
 	//If already mapped
 	if ((page_table_entry & PERM_PRESENT) == PERM_PRESENT)
@@ -387,7 +420,7 @@ int map_frame(uint32 *ptr_page_directory, struct FrameInfo *ptr_frame_info, uint
 
 	/*********************************************************************************/
 	/*NEW'23 el7:)
-	 * [DONE] map_frame(): KEEP THE VALUES OF THE AVAILABLE BITS*/
+	 * map_frame(): KEEP THE VALUES OF THE AVAILABLE BITS*/
 	uint32 pte_available_bits = ptr_page_table[PTX(virtual_address)] & PERM_AVAILABLE;
 	ptr_page_table[PTX(virtual_address)] = CONSTRUCT_ENTRY(physical_address , pte_available_bits | perm | PERM_PRESENT);
 	/*********************************************************************************/
@@ -451,7 +484,7 @@ void unmap_frame(uint32 *ptr_page_directory, uint32 virtual_address)
 
 		/*********************************************************************************/
 		/*NEW'23 el7:)
-		 * [DONE] unmap_frame(): KEEP THE VALUES OF THE AVAILABLE BITS*/
+		 * unmap_frame(): KEEP THE VALUES OF THE AVAILABLE BITS*/
 		uint32 pte_available_bits = ptr_page_table[PTX(virtual_address)] & PERM_AVAILABLE;
 		ptr_page_table[PTX(virtual_address)] = pte_available_bits;
 		/*********************************************************************************/
@@ -468,8 +501,6 @@ void unmap_frame(uint32 *ptr_page_directory, uint32 virtual_address)
 //  entry should be set to 'perm|PERM_PRESENT'.
 //
 // Details
-//   - If there is already a frame mapped at 'virtual_address', it should be unmaped
-// using unmap_frame().
 //   - If necessary, on demand, allocates a page table and inserts it into 'ptr_page_directory'.
 //   - ptr_frame_info->references should be incremented if the insertion succeeds
 //
@@ -532,10 +563,10 @@ struct freeFramesCounters calculate_available_frames()
 	uint32 totalFreeUnBuffered = 0 ;
 	uint32 totalFreeBuffered = 0 ;
 	uint32 totalModified = 0 ;
-	bool lock_is_held = holding_spinlock(&MemFrameLists.mfllock);
+	bool lock_is_held = holding_kspinlock(&MemFrameLists.mfllock);
 	if (!lock_is_held)
 	{
-		acquire_spinlock(&MemFrameLists.mfllock);
+		acquire_kspinlock(&MemFrameLists.mfllock);
 	}
 	{
 		//calculate the free frames from the free frame list
@@ -557,7 +588,7 @@ struct freeFramesCounters calculate_available_frames()
 	}
 	if (!lock_is_held)
 	{
-		release_spinlock(&MemFrameLists.mfllock);
+		release_kspinlock(&MemFrameLists.mfllock);
 	}
 	struct freeFramesCounters counters ;
 	counters.freeBuffered = totalFreeBuffered ;

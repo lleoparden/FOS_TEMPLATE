@@ -30,16 +30,9 @@
 //***********************************
 /*2015*/ //USER HEAP STRATEGIES
 uint32 _UHeapPlacementStrategy;
-
-static inline void setUHeapPlacementStrategyFIRSTFIT(){_UHeapPlacementStrategy = UHP_PLACE_FIRSTFIT;}
-static inline void setUHeapPlacementStrategyBESTFIT(){_UHeapPlacementStrategy = UHP_PLACE_BESTFIT;}
-static inline void setUHeapPlacementStrategyNEXTFIT(){_UHeapPlacementStrategy = UHP_PLACE_NEXTFIT;}
-static inline void setUHeapPlacementStrategyWORSTFIT(){_UHeapPlacementStrategy = UHP_PLACE_WORSTFIT;}
-
-static inline uint8 isUHeapPlacementStrategyFIRSTFIT(){if(_UHeapPlacementStrategy == UHP_PLACE_FIRSTFIT) return 1; return 0;}
-static inline uint8 isUHeapPlacementStrategyBESTFIT(){if(_UHeapPlacementStrategy == UHP_PLACE_BESTFIT) return 1; return 0;}
-static inline uint8 isUHeapPlacementStrategyNEXTFIT(){if(_UHeapPlacementStrategy == UHP_PLACE_NEXTFIT) return 1; return 0;}
-static inline uint8 isUHeapPlacementStrategyWORSTFIT(){if(_UHeapPlacementStrategy == UHP_PLACE_WORSTFIT) return 1; return 0;}
+/*2025*/ //Replaced by setter & getter function
+static inline void set_uheap_strategy(uint32 strategy){_UHeapPlacementStrategy = strategy;}
+static inline uint32 get_uheap_strategy(){return _UHeapPlacementStrategy ;}
 
 //***********************************
 //2018 Memory Threshold
@@ -86,7 +79,7 @@ static inline struct FrameInfo* to_frame_info(uint32 physical_address)
 	return &frames_info[PPN(physical_address)];
 }
 
-void	tlb_invalidate(uint32 *pgdir, void *ptr);
+void tlb_invalidate(uint32 *pgdir, void *ptr);
 
 struct freeFramesCounters calculate_available_frames();
 

@@ -3,18 +3,18 @@
  * USED ONLY FOR PROTECTION IN MULTI-CORE
  * Not designed for protection in a single core
  * */
-#include "inc/types.h"
+#include "kspinlock.h"
+
 #include "inc/x86.h"
 #include "inc/memlayout.h"
 #include "inc/mmu.h"
 #include "inc/string.h"
 #include "inc/environment_definitions.h"
 #include "inc/assert.h"
-#include "spinlock.h"
 #include "../cpu/cpu.h"
 #include "../proc/user_environment.h"
 
-void init_spinlock(struct spinlock *lk, char *name)
+void init_kspinlock(struct kspinlock *lk, char *name)
 {
 	strcpy(lk->name, name);
 	lk->locked = 0;
@@ -25,19 +25,25 @@ void init_spinlock(struct spinlock *lk, char *name)
 // Loops (spins) until the lock is acquired.
 // Holding a lock for a long time may cause
 // other CPUs to waste time spinning to acquire it.
-void acquire_spinlock(struct spinlock *lk)
+void acquire_kspinlock(struct kspinlock *lk)
 {
-	if(holding_spinlock(lk))
+	if(holding_kspinlock(lk))
 		panic("acquire_spinlock: lock \"%s\" is already held by the same CPU.", lk->name);
 
-	pushcli(); // disable interrupts to avoid deadlock (in case if interrupted from a higher priority (or event handler) just after holding the lock => the handler will stuck in busy-waiting and prevent the other from resuming)
+	/*disable interrupts to avoid deadlock (in case if interrupted from a higher priority (or event handler)
+	 * just after holding the lock => the handler will stuck in busy-waiting and prevent the other from resuming)
+	 */
+	pushcli();
 
-	//cprintf("\nAttempt to acquire SPIN lock [%s] by [%d]\n", lk->name, myproc() != NULL? myproc()->env_id : 0);
+	int envID = 0;
+	struct Env *e = get_cpu_proc() ;
+	if (e) envID = e->env_id;
+	//cprintf("[%d] try to acquire spinlock [%s]\n", envID, lk->name);
 
 	// The xchg is atomic.
 	while(xchg(&lk->locked, 1) != 0) ;
 
-	//cprintf("SPIN lock [%s] is ACQUIRED  by [%d]\n", lk->name, myproc() != NULL? myproc()->env_id : 0);
+	//cprintf("SPIN lock [%s] is ACQUIRED  by [%d]\n", lk->name, envID);
 
 	// Tell the C compiler and the processor to not move loads or stores
 	// past this point, to ensure that the critical section's memory
@@ -51,9 +57,9 @@ void acquire_spinlock(struct spinlock *lk)
 }
 
 // Release the lock.
-void release_spinlock(struct spinlock *lk)
+void release_kspinlock(struct kspinlock *lk)
 {
-	if(!holding_spinlock(lk))
+	if(!holding_kspinlock(lk))
 	{
 		printcallstack(lk);
 		panic("release: lock \"%s\" is either not held or held by another CPU!", lk->name);
@@ -73,7 +79,13 @@ void release_spinlock(struct spinlock *lk)
 	// not be atomic. A real OS would use C atomics here.
 	asm volatile("movl $0, %0" : "+m" (lk->locked) : );
 
+	int envID = 0;
+	struct Env *e = get_cpu_proc() ;
+	if (e) envID = e->env_id;
+	//cprintf("[%d] release spinlock [%s]\n", envID, lk->name);
+
 	popcli();
+
 }
 
 // Record the current call stack in pcs[] by following the %ebp chain.
@@ -102,7 +114,7 @@ int getcallerpcs(void *v, uint32 pcs[])
 	return length ;
 }
 
-void printcallstack(struct spinlock *lk)
+void printcallstack(struct kspinlock *lk)
 {
 	cprintf("\nCaller Stack:\n");
 	int stacklen = 	getcallerpcs(&lk, lk->pcs);
@@ -111,7 +123,7 @@ void printcallstack(struct spinlock *lk)
 	}
 }
 // Check whether this cpu is holding the lock.
-int holding_spinlock(struct spinlock *lock)
+int holding_kspinlock(struct kspinlock *lock)
 {
 	int r;
 	pushcli();

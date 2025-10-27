@@ -11,6 +11,7 @@
 #include <kern/cpu/cpu.h>
 #include <kern/disk/pagefile_manager.h>
 #include <kern/mem/memory_manager.h>
+#include <kern/mem/kheap.h>
 
 //2014 Test Free(): Set it to bypass the PAGE FAULT on an instruction with this length and continue executing the next one
 // 0 means don't bypass the PAGE FAULT
@@ -30,6 +31,8 @@ void setPageReplacmentAlgorithmFIFO(){_PageRepAlgoType = PG_REP_FIFO;}
 void setPageReplacmentAlgorithmModifiedCLOCK(){_PageRepAlgoType = PG_REP_MODIFIEDCLOCK;}
 /*2018*/ void setPageReplacmentAlgorithmDynamicLocal(){_PageRepAlgoType = PG_REP_DYNAMIC_LOCAL;}
 /*2021*/ void setPageReplacmentAlgorithmNchanceCLOCK(int PageWSMaxSweeps){_PageRepAlgoType = PG_REP_NchanceCLOCK;  page_WS_max_sweeps = PageWSMaxSweeps;}
+/*2024*/ void setFASTNchanceCLOCK(bool fast){ FASTNchanceCLOCK = fast; };
+/*2025*/ void setPageReplacmentAlgorithmOPTIMAL(){ _PageRepAlgoType = PG_REP_OPTIMAL; };
 
 //2020
 uint32 isPageReplacmentAlgorithmLRU(int LRU_TYPE){return _PageRepAlgoType == LRU_TYPE ? 1 : 0;}
@@ -38,6 +41,7 @@ uint32 isPageReplacmentAlgorithmFIFO(){if(_PageRepAlgoType == PG_REP_FIFO) retur
 uint32 isPageReplacmentAlgorithmModifiedCLOCK(){if(_PageRepAlgoType == PG_REP_MODIFIEDCLOCK) return 1; return 0;}
 /*2018*/ uint32 isPageReplacmentAlgorithmDynamicLocal(){if(_PageRepAlgoType == PG_REP_DYNAMIC_LOCAL) return 1; return 0;}
 /*2021*/ uint32 isPageReplacmentAlgorithmNchanceCLOCK(){if(_PageRepAlgoType == PG_REP_NchanceCLOCK) return 1; return 0;}
+/*2021*/ uint32 isPageReplacmentAlgorithmOPTIMAL(){if(_PageRepAlgoType == PG_REP_OPTIMAL) return 1; return 0;}
 
 //===============================
 // PAGE BUFFERING
@@ -56,6 +60,19 @@ uint32 getModifiedBufferLength() { return _ModifiedBufferLength;}
 //===============================
 
 //==================
+// [0] INIT HANDLER:
+//==================
+void fault_handler_init()
+{
+	//setPageReplacmentAlgorithmLRU(PG_REP_LRU_TIME_APPROX);
+	//setPageReplacmentAlgorithmOPTIMAL();
+	setPageReplacmentAlgorithmCLOCK();
+	//setPageReplacmentAlgorithmModifiedCLOCK();
+	enableBuffering(0);
+	enableModifiedBuffer(0) ;
+	setModifiedBufferLength(1000);
+}
+//==================
 // [1] MAIN HANDLER:
 //==================
 /*2022*/
@@ -64,6 +81,7 @@ uint32 before_last_eip = 0;
 uint32 last_fault_va = 0;
 uint32 before_last_fault_va = 0;
 int8 num_repeated_fault  = 0;
+extern uint32 sys_calculate_free_frames() ;
 
 struct Env* last_faulted_env = NULL;
 void fault_handler(struct Trapframe *tf)
@@ -71,7 +89,7 @@ void fault_handler(struct Trapframe *tf)
 	/******************************************************/
 	// Read processor's CR2 register to find the faulting address
 	uint32 fault_va = rcr2();
-	//	cprintf("\n************Faulted VA = %x************\n", fault_va);
+	//cprintf("************Faulted VA = %x************\n", fault_va);
 	//	print_trapframe(tf);
 	/******************************************************/
 
@@ -128,6 +146,7 @@ void fault_handler(struct Trapframe *tf)
 	struct Env* faulted_env = cur_env;
 	if (faulted_env == NULL)
 	{
+		cprintf("\nFaulted VA = %x\n", fault_va);
 		print_trapframe(tf);
 		panic("faulted env == NULL!");
 	}
@@ -135,12 +154,7 @@ void fault_handler(struct Trapframe *tf)
 	//If the directory entry of the faulted address is NOT PRESENT then
 	if ( (faulted_env->env_page_directory[PDX(fault_va)] & PERM_PRESENT) != PERM_PRESENT)
 	{
-		// we have a table fault =============================================================
-		//		cprintf("[%s] user TABLE fault va %08x\n", curenv->prog_name, fault_va);
-		//		print_trapframe(tf);
-
 		faulted_env->tableFaultsCounter ++ ;
-
 		table_fault_handler(faulted_env, fault_va);
 	}
 	else
@@ -148,7 +162,7 @@ void fault_handler(struct Trapframe *tf)
 		if (userTrap)
 		{
 			/*============================================================================================*/
-			//FAULT HANDLER - Check for invalid pointers
+			//TODO: [PROJECT'25.GM#3] FAULT HANDLER I - #2 Check for invalid pointers
 			//(e.g. pointing to unmarked user heap page, kernel or wrong access rights),
 			//your code is here
 
@@ -165,9 +179,10 @@ void fault_handler(struct Trapframe *tf)
 		// we have normal page fault =============================================================
 		faulted_env->pageFaultsCounter ++ ;
 
-		//		cprintf("[%08s] user PAGE fault va %08x\n", curenv->prog_name, fault_va);
-		//		cprintf("\nPage working set BEFORE fault handler...\n");
-		//		env_page_ws_print(curenv);
+//				cprintf("[%08s] user PAGE fault va %08x\n", faulted_env->prog_name, fault_va);
+//				cprintf("\nPage working set BEFORE fault handler...\n");
+//				env_page_ws_print(faulted_env);
+		//int ffb = sys_calculate_free_frames();
 
 		if(isBufferingEnabled())
 		{
@@ -175,13 +190,13 @@ void fault_handler(struct Trapframe *tf)
 		}
 		else
 		{
-			//page_fault_handler(faulted_env, fault_va);
 			page_fault_handler(faulted_env, fault_va);
 		}
+
 		//		cprintf("\nPage working set AFTER fault handler...\n");
-		//		env_page_ws_print(curenv);
-
-
+		//		env_page_ws_print(faulted_env);
+		//		int ffa = sys_calculate_free_frames();
+		//		cprintf("fault handling @%x: difference in free frames (after - before = %d)\n", fault_va, ffa - ffb);
 	}
 
 	/*************************************************************/
@@ -189,6 +204,7 @@ void fault_handler(struct Trapframe *tf)
 	tlbflush();
 	/*************************************************************/
 }
+
 
 //=========================
 // [2] TABLE FAULT HANDLER:
@@ -212,34 +228,75 @@ void table_fault_handler(struct Env * curenv, uint32 fault_va)
 //=========================
 // [3] PAGE FAULT HANDLER:
 //=========================
+/* Calculate the number of page faults according th the OPTIMAL replacement strategy
+ * Given:
+ * 	1. Initial Working Set List (that the process started with)
+ * 	2. Max Working Set Size
+ * 	3. Page References List (contains the stream of referenced VAs till the process finished)
+ *
+ * 	IMPORTANT: This function SHOULD NOT change any of the given lists
+ */
+int get_optimal_num_faults(struct WS_List *initWorkingSet, int maxWSSize, struct PageRef_List *pageReferences)
+{
+	//TODO: [PROJECT'25.IM#1] FAULT HANDLER II - #2 get_optimal_num_faults
+	//Your code is here
+	//Comment the following line
+	panic("get_optimal_num_faults() is not implemented yet...!!");
+}
+
 void page_fault_handler(struct Env * faulted_env, uint32 fault_va)
 {
 #if USE_KHEAP
-		struct WorkingSetElement *victimWSElement = NULL;
-		uint32 wsSize = LIST_SIZE(&(faulted_env->page_WS_list));
+	struct WorkingSetElement *victimWSElement = NULL;
+	uint32 wsSize = LIST_SIZE(&(faulted_env->page_WS_list));
 #else
-		int iWS =faulted_env->page_last_WS_index;
-		uint32 wsSize = env_page_ws_get_size(faulted_env);
+	int iWS =faulted_env->page_last_WS_index;
+	uint32 wsSize = env_page_ws_get_size(faulted_env);
 #endif
-
 	if(wsSize < (faulted_env->page_WS_max_size))
 	{
-		//cprintf("PLACEMENT=========================WS Size = %d\n", wsSize );
-		// Write your code here, remove the panic and write your code
+		//TODO: [PROJECT'25.GM#3] FAULT HANDLER I - #3 placement
+		//Your code is here
+		//Comment the following line
 		panic("page_fault_handler().PLACEMENT is not implemented yet...!!");
 	}
 	else
 	{
-		//cprintf("REPLACEMENT=========================WS Size = %d\n", wsSize );
-		// Write your code here, remove the panic and write your code
-		panic("page_fault_handler() Replacement is not implemented yet...!!");
+		if (isPageReplacmentAlgorithmOPTIMAL())
+		{
+			//TODO: [PROJECT'25.IM#1] FAULT HANDLER II - #1 Optimal Reference Stream
+			//Your code is here
+			//Comment the following line
+			panic("page_fault_handler().REPLACEMENT is not implemented yet...!!");
+		}
+		else if (isPageReplacmentAlgorithmOPTIMAL())
+		{
+			//TODO: [PROJECT'25.IM#1] FAULT HANDLER II - #3 Clock Replacement
+			//Your code is here
+			//Comment the following line
+			panic("page_fault_handler().REPLACEMENT is not implemented yet...!!");
+		}
+		else if (isPageReplacmentAlgorithmLRU(PG_REP_LRU_TIME_APPROX))
+		{
+			//TODO: [PROJECT'25.IM#6] FAULT HANDLER II - #2 LRU Aging Replacement
+			//Your code is here
+			//Comment the following line
+			panic("page_fault_handler().REPLACEMENT is not implemented yet...!!");
+		}
+		else if (isPageReplacmentAlgorithmModifiedCLOCK())
+		{
+			//TODO: [PROJECT'25.IM#6] FAULT HANDLER II - #3 Modified Clock Replacement
+			//Your code is here
+			//Comment the following line
+			panic("page_fault_handler().REPLACEMENT is not implemented yet...!!");
+		}
 	}
 }
 
 void __page_fault_handler_with_buffering(struct Env * curenv, uint32 fault_va)
 {
-	//PAGE FAULT HANDLER WITH BUFFERING
-	// your code is here, remove the panic and write your code
-	panic("__page_fault_handler_with_buffering() is not implemented yet...!!");
+	panic("this function is not required...!!");
 }
+
+
 

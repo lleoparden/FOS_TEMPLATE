@@ -53,7 +53,7 @@ inline int pt_get_page_permissions(uint32* directory, uint32 virtual_address )
 {
 	//TODO: PRACTICE: fill this function.
 	//Comment the following line
-	panic("Function is not implemented yet!");
+	panic("pt_get_page_permissions() is not implemented yet!");
 }
 
 //===============================
@@ -67,7 +67,7 @@ inline void pt_clear_page_table_entry(uint32* directory, uint32 virtual_address)
 {
 	//TODO: PRACTICE: fill this function.
 	//Comment the following line
-	panic("Function is not implemented yet!");
+	panic("pt_clear_page_table_entry() is not implemented yet!");
 }
 
 /***********************************************************************************************/
@@ -109,7 +109,9 @@ inline uint32 num_of_references(uint32 physical_address)
 {
 	//TODO: LAB4 Example#1: fill this function.
 	//Comment the following line
-	panic("Function is not implemented yet!");
+//	panic("Function is not implemented yet!");
+	struct FrameInfo* ptr_fi = to_frame_info(physical_address);
+	return ptr_fi->references;
 }
 
 //===============================

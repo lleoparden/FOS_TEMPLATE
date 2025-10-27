@@ -2,6 +2,7 @@
 
 #ifndef FOS_KERN_SCHED_H
 #define FOS_KERN_SCHED_H
+
 #ifndef FOS_KERNEL
 # error "This is a FOS kernel header; user programs should not #include it"
 #endif
@@ -9,7 +10,7 @@
 #include <inc/environment_definitions.h>
 #include <inc/fixed_point.h>
 #include <kern/cpu/sched_helpers.h>
-#include <kern/conc/spinlock.h>
+#include "../conc/kspinlock.h"
 
 //2018
 #define SCH_RR 		0
@@ -17,14 +18,13 @@
 #define SCH_BSD 	2
 #define SCH_PRIRR 	3
 
-//2024 - decide whether to place this as a private member for each CPU or as a global for all CPUs?
 unsigned scheduler_method ;
 
 ///Scheduler Queues
 //=================
 struct
 {
-	struct spinlock qlock;				//TODO: SpinLock to protect all process queues
+	struct kspinlock qlock;				/*2024*///Lock to protect all queues
 	struct Env_Queue env_new_queue;		// queue of all new envs
 	struct Env_Queue env_exit_queue;	// queue of all exited envs
 #if USE_KHEAP
@@ -55,13 +55,13 @@ struct
 //2017
 //#define CLOCK_INTERVAL_IN_CNTS TIMER_DIV((1000/CLOCK_INTERVAL_IN_MS))
 
-/*2023*/
-/********* for BSD Priority Scheduler *************/
-#define PRI_MIN 0
-#define PRI_MAX 63
+
 int64 ticks;
 int64 timer_ticks() ;
-/********* for BSD Priority Scheduler *************/
+
+//BSD
+#define PRI_MIN 0
+#define PRI_MAX 63
 
 void sched_init_RR(uint8 quantum);
 void sched_init_MLFQ(uint8 numOfLevels, uint8 *quantumOfEachLevel);

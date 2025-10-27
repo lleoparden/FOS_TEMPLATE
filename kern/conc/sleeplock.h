@@ -4,15 +4,14 @@
 #ifndef KERN_CONC_SLEEPLOCK_H_
 #define KERN_CONC_SLEEPLOCK_H_
 
-#include <kern/conc/spinlock.h>
 #include <kern/conc/channel.h>
 #include <kern/cpu/sched_helpers.h>
+#include "kspinlock.h"
 
-//===================================================================================
 struct sleeplock
 {
 	bool locked;       		// Is the lock held?
-	struct spinlock lk; 	// spinlock protecting this sleep lock
+	struct kspinlock lk; 	// spinlock protecting this sleep lock
 	struct Channel chan;	// channel to hold all blocked processes on this lock
 	// For debugging:
 	char name[NAMELEN];    	// Name of lock.
@@ -20,10 +19,8 @@ struct sleeplock
 };
 
 void init_sleeplock(struct sleeplock *lk, char *name);
-int  holding_sleeplock(struct sleeplock *lk);
-//===================================================================================
-
 void acquire_sleeplock(struct sleeplock *lk);
 void release_sleeplock(struct sleeplock *lk);
+int  holding_sleeplock(struct sleeplock *lk);
 
 #endif /*KERN_CONC_SLEEPLOCK_H_*/

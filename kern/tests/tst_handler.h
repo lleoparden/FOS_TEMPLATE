@@ -51,6 +51,8 @@ int tst_paging_manipulation(int number_of_arguments, char **arguments);
 int tst_chunks(int number_of_arguments, char **arguments);
 int tst_kheap(int number_of_arguments, char **arguments);
 
+/*2024*/
+int tst_priorityRR(int number_of_arguments, char **arguments);
 
 
 #endif /* KERN_TESTS_TST_HANDLER_H_ */

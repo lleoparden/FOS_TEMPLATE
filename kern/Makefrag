@@ -47,7 +47,7 @@ KERN_SRCFILES :=	kern/entry.S \
 			kern/trap/syscall.c \
 			kern/trap/kdebug.c \
 			kern/trap/fault_handler.c  \
-			kern/conc/spinlock.c \
+			kern/conc/kspinlock.c \
 			kern/conc/sleeplock.c \
 			kern/conc/channel.c \
 			kern/conc/ksemaphore.c \

@@ -30,7 +30,7 @@ int cut_paste_pages(uint32* page_directory, uint32 source_va, uint32 dest_va, ui
 {
 	//TODO: PRACTICE: fill this function.
 	//Comment the following line
-	panic("Function is not implemented yet!");
+	panic("cut_paste_pages() is not implemented yet...!!");
 }
 
 //===============================
@@ -49,7 +49,7 @@ int copy_paste_chunk(uint32* page_directory, uint32 source_va, uint32 dest_va, u
 {
 	//TODO: PRACTICE: fill this function.
 	//Comment the following line
-	panic("Function is not implemented yet!");
+	panic("copy_paste_chunk() is not implemented yet...!!");
 }
 
 //===============================
@@ -67,7 +67,7 @@ int share_chunk(uint32* page_directory, uint32 source_va,uint32 dest_va, uint32 
 {
 	//TODO: PRACTICE: fill this function.
 	//Comment the following line
-	panic("Function is not implemented yet!");
+	panic("share_chunk() is not implemented yet...!!");
 }
 
 //===============================
@@ -81,7 +81,7 @@ int allocate_chunk(uint32* page_directory, uint32 va, uint32 size, uint32 perms)
 {
 	//TODO: PRACTICE: fill this function.
 	//Comment the following line
-	panic("Function is not implemented yet!");
+	panic("allocate_chunk() is not implemented yet...!!");
 }
 
 
@@ -93,9 +93,9 @@ int allocate_chunk(uint32* page_directory, uint32 va, uint32 size, uint32 perms)
 //Addresses may not be aligned on page boundaries
 uint32 calculate_free_space(uint32* page_directory, uint32 sva, uint32 eva)
 {
-	//TODO: LAB4 Hands-on: fill this function.
+	//TODO: PRACTICE: fill this function.
 	//Comment the following line
-	panic("Function is not implemented yet!");
+	panic("calculate_free_space() is not implemented yet...!!");
 }
 
 //=====================================
@@ -105,7 +105,7 @@ void calculate_allocated_space(uint32* page_directory, uint32 sva, uint32 eva, u
 {
 	//TODO: PRACTICE: fill this function.
 	//Comment the following line
-	panic("Function is not implemented yet!");
+	panic("calculate_allocated_space() is not implemented yet...!!");
 }
 
 //=====================================
@@ -118,7 +118,7 @@ uint32 calculate_required_frames(uint32* page_directory, uint32 sva, uint32 size
 {
 	//TODO: PRACTICE: fill this function.
 	//Comment the following line
-	panic("Function is not implemented yet!");
+	panic("calculate_required_frames() is not implemented yet...!!");
 }
 
 //=================================================================================//
@@ -134,11 +134,28 @@ uint32 calculate_required_frames(uint32* page_directory, uint32 sva, uint32 size
 //======================================================
 
 //=====================================
+/* DYNAMIC ALLOCATOR SYSTEM CALLS */
+//=====================================
+/*2024*/
+void* sys_sbrk(int numOfPages)
+{
+	panic("not implemented function");
+}
+
+//=====================================
 // 1) ALLOCATE USER MEMORY:
 //=====================================
 void allocate_user_mem(struct Env* e, uint32 virtual_address, uint32 size)
 {
-	// Write your code here, remove the panic and write your code
+	/*====================================*/
+	/*Remove this line before start coding*/
+//		inctst();
+//		return;
+	/*====================================*/
+
+	//TODO: [PROJECT'25.IM#2] USER HEAP - #2 allocate_user_mem
+	//Your code is here
+	//Comment the following line
 	panic("allocate_user_mem() is not implemented yet...!!");
 }
 
@@ -147,19 +164,16 @@ void allocate_user_mem(struct Env* e, uint32 virtual_address, uint32 size)
 //=====================================
 void free_user_mem(struct Env* e, uint32 virtual_address, uint32 size)
 {
-	//USER HEAP [KERNEL SIDE] - free_user_mem
-	// Write your code here, remove the panic and write your code
-	panic("free_user_mem() is not implemented yet...!!");
-}
+	/*====================================*/
+	/*Remove this line before start coding*/
+//		inctst();
+//		return;
+	/*====================================*/
 
-//=====================================
-// 3) MOVE USER MEMORY:
-//=====================================
-void move_user_mem(struct Env* e, uint32 src_virtual_address, uint32 dst_virtual_address, uint32 size)
-{
-	//[USER HEAP - KERNEL SIDE] move_user_mem
-	//your code is here, remove the panic and write your code
-	panic("move_user_mem() is not implemented yet...!!");
+	//TODO: [PROJECT'25.IM#2] USER HEAP - #4 free_user_mem
+	//Your code is here
+	//Comment the following line
+	panic("free_user_mem() is not implemented yet...!!");
 }
 
 //=====================================
@@ -172,33 +186,12 @@ void __free_user_mem_with_buffering(struct Env* e, uint32 virtual_address, uint3
 }
 
 //=====================================
-/* DYNAMIC ALLOCATOR SYSTEM CALLS */
+// 3) MOVE USER MEMORY:
 //=====================================
-void* sys_sbrk(int numOfPages)
+void move_user_mem(struct Env* e, uint32 src_virtual_address, uint32 dst_virtual_address, uint32 size)
 {
-	/* numOfPages > 0: move the segment break of the current user program to increase the size of its heap
-	 * 				by the given number of pages. You should allocate NOTHING,
-	 * 				and returns the address of the previous break (i.e. the beginning of newly mapped memory).
-	 * numOfPages = 0: just return the current position of the segment break
-	 *
-	 * NOTES:
-	 * 	1) As in real OS, allocate pages lazily. While sbrk moves the segment break, pages are not allocated
-	 * 		until the user program actually tries to access data in its heap (i.e. will be allocated via the fault handler).
-	 * 	2) Allocating additional pages for a process’ heap will fail if, for example, the free frames are exhausted
-	 * 		or the break exceed the limit of the dynamic allocator. If sys_sbrk fails, the net effect should
-	 * 		be that sys_sbrk returns (void*) -1 and that the segment break and the process heap are unaffected.
-	 * 		You might have to undo any operations you have done so far in this case.
-	 */
-
-	/*====================================*/
-	/*Remove this line before start coding*/
-	return (void*)-1 ;
-	/*====================================*/
-	struct Env* env = get_cpu_proc(); //the current running Environment to adjust its break limit
-
-
+	panic("move_user_mem() is not implemented yet...!!");
 }
-
 
 //=================================================================================//
 //========================== END USER CHUNKS MANIPULATION =========================//

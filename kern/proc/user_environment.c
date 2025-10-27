@@ -82,6 +82,7 @@ void set_environment_entry_point(struct Env* e, uint8* ptr_program_start);
 /* MAIN FUNCTIONS */
 /******************************/
 
+
 //==============================
 // 0) INITIALIZE THE ENVS LIST:
 //==============================
@@ -107,89 +108,98 @@ void env_init(void)
 // Allocates a new env and loads the named user program into it.
 struct Env* env_create(char* user_program_name, unsigned int page_WS_size, unsigned int LRU_second_list_size, unsigned int percent_WS_pages_to_remove)
 {
-	//[1] get pointer to the start of the "user_program_name" program in memory
-	// Hint: use "get_user_program_info" function,
-	// you should set the following "ptr_program_start" by the start address of the user program
-	uint8* ptr_program_start = 0;
 
-	struct UserProgramInfo* ptr_user_program_info = get_user_program_info(user_program_name);
-	if(ptr_user_program_info == 0)
-	{
-		return NULL;
-	}
-	ptr_program_start = ptr_user_program_info->ptr_start ;
+	//[0] 2024: Disable the interrupt through the entire function to avoid concurrency issues while:
+	//		1. switching the directories
+	//		2. between allocate_environment and removing it later in complete_env..._initi...
+	/*THANKS to T58 - 2024/2025*/
 
-	//[2] allocate new environment, (from the free environment list)
-	//if there's no one, return NULL
-	// Hint: use "allocate_environment" function
 	struct Env* e = NULL;
-	if(allocate_environment(&e) < 0)
-	{
-		return NULL;
-	}
 
-	//[2.5 - 2012] Set program name inside the environment
-	//e->prog_name = ptr_user_program_info->name ;
-	//2017: changed to fixed size array to be abale to access it from user side
-	if (strlen(ptr_user_program_info->name) < PROGNAMELEN)
-		strcpy(e->prog_name, ptr_user_program_info->name);
-	else
-		strncpy(e->prog_name, ptr_user_program_info->name, PROGNAMELEN-1);
-
-	//[3] allocate a frame for the page directory, Don't forget to set the references of the allocated frame.
-	//REMEMBER: "allocate_frame" should always return a free frame
-	uint32* ptr_user_page_directory;
-	unsigned int phys_user_page_directory;
-#if USE_KHEAP
-	{
-		ptr_user_page_directory = create_user_directory();
-		phys_user_page_directory = kheap_physical_address((uint32)ptr_user_page_directory);
-	}
-#else
-	{
-		int r;
-		struct FrameInfo *p = NULL;
-
-		allocate_frame(&p) ;
-		p->references = 1;
-
-		ptr_user_page_directory = STATIC_KERNEL_VIRTUAL_ADDRESS(to_physical_address(p));
-		phys_user_page_directory = to_physical_address(p);
-	}
-#endif
-	//[4] initialize the new environment by the virtual address of the page directory
-	// Hint: use "initialize_environment" function
-
-	//2016
-	e->page_WS_max_size = page_WS_size;
-
-	//2020
-	if(isPageReplacmentAlgorithmLRU(PG_REP_LRU_LISTS_APPROX))
-	{
-		e->SecondListSize = LRU_second_list_size;
-		e->ActiveListSize = page_WS_size - LRU_second_list_size;
-	}
-
-	//2018
-	if (percent_WS_pages_to_remove == 0)	// If not entered as input, 0 as default value
-		e->percentage_of_WS_pages_to_be_removed = DEFAULT_PERCENT_OF_PAGE_WS_TO_REMOVE;
-	else
-		e->percentage_of_WS_pages_to_be_removed = percent_WS_pages_to_remove;
-
-	initialize_environment(e, ptr_user_page_directory, phys_user_page_directory);
-
-	// We want to load the program into the user virtual space
-	// each program is constructed from one or more segments,
-	// each segment has the following information grouped in "struct ProgramSegment"
-	//	1- uint8 *ptr_start: 	start address of this segment in memory
-	//	2- uint32 size_in_file: size occupied by this segment inside the program file,
-	//	3- uint32 size_in_memory: actual size required by this segment in memory
-	// 	usually size_in_file < or = size_in_memory
-	//	4- uint8 *virtual_address: start virtual address that this segment should be copied to it
-
-	//[5] 2024: Disable the interrupt before switching the directories
 	pushcli();
 	{
+		//[1] get pointer to the start of the "user_program_name" program in memory
+		// Hint: use "get_user_program_info" function,
+		// you should set the following "ptr_program_start" by the start address of the user program
+		uint8* ptr_program_start = 0;
+
+		struct UserProgramInfo* ptr_user_program_info = get_user_program_info(user_program_name);
+		if(ptr_user_program_info == 0)
+		{
+			popcli();
+			return NULL;
+		}
+		ptr_program_start = ptr_user_program_info->ptr_start ;
+
+		//[2] allocate new environment, (from the free environment list)
+		//if there's no one, return NULL
+		// Hint: use "allocate_environment" function
+		if(allocate_environment(&e) < 0)
+		{
+			popcli();
+			return NULL;
+		}
+
+		//[2.5 - 2012] Set program name inside the environment
+		//e->prog_name = ptr_user_program_info->name ;
+		//2017: changed to fixed size array to be abale to access it from user side
+		if (strlen(ptr_user_program_info->name) < PROGNAMELEN)
+			strcpy(e->prog_name, ptr_user_program_info->name);
+		else
+			strncpy(e->prog_name, ptr_user_program_info->name, PROGNAMELEN-1);
+
+		//[3] allocate a frame for the page directory, Don't forget to set the references of the allocated frame.
+		//REMEMBER: "allocate_frame" should always return a free frame
+		uint32* ptr_user_page_directory;
+		unsigned int phys_user_page_directory;
+#if USE_KHEAP
+		{
+			ptr_user_page_directory = create_user_directory();
+			phys_user_page_directory = kheap_physical_address((uint32)ptr_user_page_directory);
+		}
+
+#else
+		{
+			int r;
+			struct FrameInfo *p = NULL;
+
+			allocate_frame(&p) ;
+			p->references = 1;
+
+			ptr_user_page_directory = STATIC_KERNEL_VIRTUAL_ADDRESS(to_physical_address(p));
+			phys_user_page_directory = to_physical_address(p);
+		}
+#endif
+		//[4] initialize the new environment by the virtual address of the page directory
+		// Hint: use "initialize_environment" function
+
+		//2016
+		e->page_WS_max_size = page_WS_size;
+
+		//2020
+		if(isPageReplacmentAlgorithmLRU(PG_REP_LRU_LISTS_APPROX))
+		{
+			e->SecondListSize = LRU_second_list_size;
+			e->ActiveListSize = page_WS_size - LRU_second_list_size;
+		}
+
+		//2018
+		if (percent_WS_pages_to_remove == 0)	// If not entered as input, 0 as default value
+			e->percentage_of_WS_pages_to_be_removed = DEFAULT_PERCENT_OF_PAGE_WS_TO_REMOVE;
+		else
+			e->percentage_of_WS_pages_to_be_removed = percent_WS_pages_to_remove;
+
+		initialize_environment(e, ptr_user_page_directory, phys_user_page_directory);
+
+		// We want to load the program into the user virtual space
+		// each program is constructed from one or more segments,
+		// each segment has the following information grouped in "struct ProgramSegment"
+		//	1- uint8 *ptr_start: 	start address of this segment in memory
+		//	2- uint32 size_in_file: size occupied by this segment inside the program file,
+		//	3- uint32 size_in_memory: actual size required by this segment in memory
+		// 	usually size_in_file < or = size_in_memory
+		//	4- uint8 *virtual_address: start virtual address that this segment should be copied to it
+
 		//[6] switch to user page directory
 		uint32 cur_phys_pgdir = rcr3() ;
 		lcr3(e->env_cr3) ;
@@ -418,11 +428,23 @@ struct Env* env_create(char* user_program_name, unsigned int page_WS_size, unsig
 	//[12] Re-enable the interrupt (if it was too)
 	popcli();
 
-
-	//[13] Print the initial working set [for debugging]
+	//[13] Copy the prepaged VAs into the corresponding array
+#if USE_KHEAP
+	e->numOfPrepagedVAs = LIST_SIZE(&(e->page_WS_list));
+	e->prepagedVAs = kmalloc(sizeof(uint32) * e->numOfPrepagedVAs);
+	struct WorkingSetElement *ptrWSE;
+	int w = 0;
+	LIST_FOREACH(ptrWSE, &(e->page_WS_list))
 	{
-//		cprintf("Page working set after loading the program...\n");
-//		env_page_ws_print(e);
+		e->prepagedVAs[w++] = ptrWSE->virtual_address;
+	}
+	assert(w == e->numOfPrepagedVAs);
+#endif
+
+	//[14] Print the initial working set [for debugging]
+	{
+		//cprintf("Page working set after loading the program...\n");
+		//env_page_ws_print(e);
 
 		//	cprintf("Table working set after loading the program...\n");
 		//	env_table_ws_print(e);
@@ -439,7 +461,7 @@ void env_start(void)
 {
 	static int first = 1;
 	// Still holding q.lock from scheduler.
-	release_spinlock(&ProcessQueues.qlock);
+	release_kspinlock(&ProcessQueues.qlock);
 
 	if (first)
 	{
@@ -463,18 +485,31 @@ void env_start(void)
 void env_free(struct Env *e)
 {
 	/*REMOVE THIS LINE BEFORE START CODING*/
-	return;
+	//return;
 	/**************************************/
 
-	// your code is here, remove the panic and write your code
+	/********DON'T CHANGE THIS LINE***********/
+#if USE_KHEAP //
+	//unshare_pws_at_user_space(e);
+#endif
+	/*****************************************/
+	//TODO: [PROJECT'25.BONUS#4] EXIT #1 & #2 - env_free
+	//Your code is here
+	//Comment the following line
 	panic("env_free() is not implemented yet...!!");
 
-
+	// [1] [NOT REQUIRED] [If BUFFERING is Enabled] Un-buffer any BUFFERED page belong to this environment from the free/modified lists
+	// [2] Free the pages in the PAGE working set from the main memory
+	// [3] free the PAGE working set itself from the main memory
+	// [4] free the USER HEAP block allocator [if exists]
+	// [5] Free Shared variables [if any]
+	// [6] Free Semaphores [if any]
+	// [7] Free all TABLES from the main memory
+	// [8] free the page DIRECTORY from the main memory
 	// [9] remove this program from the page file
 	/*(ALREADY DONE for you)*/
 	pf_free_env(e); /*(ALREADY DONE for you)*/ // (removes all of the program pages from the page file)
 	/*========================*/
-
 	// [10] free the environment (return it back to the free environment list)
 	/*(ALREADY DONE for you)*/
 	free_environment(e); /*(ALREADY DONE for you)*/ // (frees the environment (returns it back to the free environment list))
@@ -490,9 +525,8 @@ void env_exit(void)
 	struct Env* cur_env = get_cpu_proc();
 	assert(cur_env != NULL);
 	sched_exit_env(cur_env->env_id);
-	//2024: Replaced by context switch
+	//2024: Replaced by context switch in the sched() function which will be called in sched_exit_env()
 	//fos_scheduler();
-	//context_switch(&(curenv->context), mycpu()->scheduler);
 }
 
 //===================================
@@ -512,7 +546,7 @@ struct Env* get_cpu_proc(void)
 	return p;
 }
 //===================================
-// 6) SET PROCESS TO BE RUN ON CPU:
+// 5) SET PROCESS TO BE RUN ON CPU:
 //===================================
 // Disable interrupts so that we are not rescheduled
 // while setting proc into the cpu structure
@@ -527,7 +561,7 @@ void set_cpu_proc(struct Env* p)
 }
 
 //===============================
-// 7) GET ENV FROM ENV ID:
+// 6) GET ENV FROM ENV ID:
 //===============================
 // Converts an envid to an env pointer.
 //
@@ -573,26 +607,26 @@ int envid2env(int32  envid, struct Env **env_store, bool checkperm)
 }
 
 //=================================
-// 8) GIVE-UP CPU TO THE SCHEDULER:
+// 7) GIVE-UP CPU TO THE SCHEDULER:
 //=================================
 // Give up the CPU for one scheduling round.
 // Ref: xv6-x86 OS
 void yield(void)
 {
 	//cprintf("\n[YIELD] acquire: lock status before acquire = %d\n", qlock.locked);
-	acquire_spinlock(&ProcessQueues.qlock);  //lock: to protect process Qs in multi-CPU
+	acquire_kspinlock(&ProcessQueues.qlock);  //lock: to protect process Qs in multi-CPU
 	{
 		struct Env* p = get_cpu_proc();
 		assert(p != NULL);
 		p->env_status = ENV_READY;
 		sched();
 	}
-	release_spinlock(&ProcessQueues.qlock); ////release lock
+	release_kspinlock(&ProcessQueues.qlock); ////release lock
 	//cprintf("\n[YIELD] release: lock status after release = %d\n", qlock.locked);
 }
 
 //=================================
-// 9) SWITCH TO THE SCHEDULER:
+// 8) SWITCH TO THE SCHEDULER:
 //=================================
 // Enter scheduler.  Must hold only the "ProcessQueues.qlock" and have changed proc->state.
 // Saves and restores intena because intena is a property of this kernel thread, not this CPU.
@@ -606,7 +640,7 @@ void sched(void)
 	assert(p != NULL);
 
 	/*To protect process Qs (or info of current process) in multi-CPU*/
-	if(!holding_spinlock(&ProcessQueues.qlock))
+	if(!holding_kspinlock(&ProcessQueues.qlock))
 		panic("sched: q.lock is not held by this CPU while it's expected to be. ");
 	/*Should ensure that the ncli = 1 so that the interrupt will be released after scheduling the next proc*/
 	if(mycpu()->ncli != 1)
@@ -623,16 +657,16 @@ void sched(void)
 
 
 //===============================
-// 10) SWITCH VIRTUAL MEMORYs:
+// 9) SWITCH VIRTUAL MEMORYs:
 //===============================
-// [10.1] Switch h/w page table register to the kernel-only page table,
+// [9.1] Switch h/w page table register to the kernel-only page table,
 // for when no process is running.
 void switchkvm(void)
 {
 	lcr3(phys_page_directory);   // switch to the kernel page table
 }
 
-// [10.2] Switch TSS and h/w page table to correspond to process p.
+// [9.2] Switch TSS and h/w page table to correspond to process p.
 void switchuvm(struct Env *proc)
 {
 	if(proc == 0)
@@ -665,6 +699,10 @@ void switchuvm(struct Env *proc)
 }
 
 
+
+
+
+
 //=================================================================================//
 //=============================== END MAIN FUNCTIONS ==============================//
 //=================================================================================//
@@ -675,7 +713,7 @@ void switchuvm(struct Env *proc)
 /******************************/
 
 //======================================
-// 1) ALLOCATE NEW ENV STRUCT FROM LIST:
+// 2) ALLOCATE NEW ENV STRUCT FROM LIST:
 //======================================
 // Allocates and initializes a new environment.
 // On success, the new environment is stored in *e.
@@ -692,7 +730,7 @@ int allocate_environment(struct Env** e)
 }
 
 //===============================
-// 2) FREE ENV STRUCT:
+// 3) FREE ENV STRUCT:
 //===============================
 // Free the given environment "e", simply by adding it to the free environment list.
 void free_environment(struct Env* e)
@@ -703,7 +741,7 @@ void free_environment(struct Env* e)
 }
 
 //===============================================
-// 3) ALLOCATE & MAP SPACE FOR A PROG SEGMENT:
+// 4) ALLOCATE & MAP SPACE FOR A PROG SEGMENT:
 //===============================================
 // Allocate length bytes of physical memory for environment env,
 // and map it at virtual address va in the environment's address space.
@@ -753,6 +791,7 @@ static int program_segment_alloc_map_copy_workingset(struct Env *e, struct Progr
 		if (isPageReplacmentAlgorithmLRU(PG_REP_LRU_LISTS_APPROX))
 		{
 #if USE_KHEAP
+			//Remove wse from page_WS_list
 			LIST_REMOVE(&(e->page_WS_list), wse);
 			//Always leave 1 page in Active list for the stack
 			if (LIST_SIZE(&(e->ActiveList)) < e->ActiveListSize - 1)
@@ -765,7 +804,6 @@ static int program_segment_alloc_map_copy_workingset(struct Env *e, struct Progr
 				LIST_INSERT_HEAD(&(e->SecondList), wse);
 			}
 #else
-
 			LIST_REMOVE(&(e->PageWorkingSetList), &(e->ptr_pageWorkingSet[e->page_last_WS_index]));
 			//Always leave 1 page in Active list for the stack
 			if (LIST_SIZE(&(e->ActiveList)) < e->ActiveListSize - 1)
@@ -836,10 +874,11 @@ static int program_segment_alloc_map_copy_workingset(struct Env *e, struct Progr
 
 
 //==================================================
-// 4) DYNAMICALLY ALLOCATE SPACE FOR USER DIRECTORY:
+// 5) DYNAMICALLY ALLOCATE SPACE FOR USER DIRECTORY:
 //==================================================
 void * create_user_directory()
 {
+	//[PROJECT] [PROGRAM LOAD] create_user_directory()
 	// Write your code here, remove the panic and write your code
 	//panic("create_user_directory() is not implemented yet...!!");
 
@@ -858,28 +897,18 @@ void * create_user_directory()
 /*2024*/
 uint32 __cur_k_stk = KERNEL_HEAP_START;
 //===========================================================
-// 5) ALLOCATE SPACE FOR USER KERNEL STACK (One Per Process):
+// 6) ALLOCATE SPACE FOR USER KERNEL STACK (One Per Process):
 //===========================================================
 void* create_user_kern_stack(uint32* ptr_user_page_directory)
 {
-#if USE_KHEAP
-	// Write your code here, remove the panic and write your code
+	//TODO: [PROJECT'25.GM#3] FAULT HANDLER I - #1 create_user_kern_stack
+	//Your code is here
+	//Comment the following line
 	panic("create_user_kern_stack() is not implemented yet...!!");
 
 	//allocate space for the user kernel stack.
 	//remember to leave its bottom page as a GUARD PAGE (i.e. not mapped)
 	//return a pointer to the start of the allocated space (including the GUARD PAGE)
-	//On failure: panic
-
-
-#else
-	if (KERNEL_HEAP_MAX - __cur_k_stk < KERNEL_STACK_SIZE)
-		panic("Run out of kernel heap!! Unable to create a kernel stack for the process. Can't create more processes!");
-	void* kstack = (void*) __cur_k_stk;
-	__cur_k_stk += KERNEL_STACK_SIZE;
-	return kstack ;
-//	panic("KERNEL HEAP is OFF! user kernel stack is not supported");
-#endif
 }
 
 /*2024*/
@@ -889,24 +918,17 @@ void* create_user_kern_stack(uint32* ptr_user_page_directory)
 void delete_user_kern_stack(struct Env* e)
 {
 #if USE_KHEAP
+	//TODO: [PROJECT'25.BONUS#4] EXIT #1 & #2 - delete_user_kern_stack
 	// Write your code here, remove the panic and write your code
 	panic("delete_user_kern_stack() is not implemented yet...!!");
 
 	//Delete the allocated space for the user kernel stack of this process "e"
 	//remember to delete the bottom GUARD PAGE (i.e. not mapped)
+	//NEED TO FIND THE CORRECT PLACE TO CALL IT!
+	//(can't call it in env_free() since the stack is already in use during the function)
 #else
 	panic("KERNEL HEAP is OFF! user kernel stack can't be deleted");
 #endif
-}
-//===============================================
-// 7) INITIALIZE DYNAMIC ALLOCATOR OF UHEAP:
-//===============================================
-void initialize_uheap_dynamic_allocator(struct Env* e, uint32 daStart, uint32 daLimit)
-{
-	//Remember:
-	//	1) there's no initial allocations for the dynamic allocator of the user heap (=0)
-	//	2) call the initialize_dynamic_allocator(..) to complete the initialization
-	//panic("initialize_uheap_dynamic_allocator() is not implemented yet...!!");
 }
 
 //==============================================================
@@ -976,6 +998,7 @@ void initialize_environment(struct Env* e, uint32* ptr_user_page_directory, unsi
 #if USE_KHEAP == 1
 	{
 		LIST_INIT(&(e->page_WS_list));
+		LIST_INIT(&(e->referenceStreamList));
 	}
 #else
 	{
@@ -1036,9 +1059,6 @@ void initialize_environment(struct Env* e, uint32* ptr_user_page_directory, unsi
 
 	//e->shared_free_address = USER_SHARED_MEM_START;
 
-	//call initialize_uheap_dynamic_allocator(...)
-	initialize_uheap_dynamic_allocator(e, USER_HEAP_START, USER_HEAP_START + DYN_ALLOC_MAX_SIZE);
-
 	//Completes other environment initializations, (envID, status and most of registers)
 	complete_environment_initialization(e);
 }
@@ -1066,6 +1086,7 @@ void complete_environment_initialization(struct Env* e)
 		generation = 1 << ENVGENSHIFT;
 	e->env_id = generation | (e - envs);
 
+	//cprintf("\n[%d] user kernel stack located in [%x,%x)\n", e->env_id, e->kstack, e->kstack + KERNEL_STACK_SIZE);
 	//cprintf("ENV_CREATE: envID = %d, orig index in envs = %d, calc index using ENVX = %d\n", e->env_id, (e - envs), ENVX(e->env_id));
 
 	// Set the basic status variables.
@@ -1118,7 +1139,7 @@ void set_environment_entry_point(struct Env* e, uint8* ptr_program_start)
 }
 
 //===============================================
-// 11) SEG NEXT [TO BE USED IN PROG_SEG_FOREACH]:
+// 13) SEG NEXT [TO BE USED IN PROG_SEG_FOREACH]:
 //===============================================
 struct ProgramSegment* PROGRAM_SEGMENT_NEXT(struct ProgramSegment* seg, uint8* ptr_program_start)
 {
@@ -1145,7 +1166,7 @@ struct ProgramSegment* PROGRAM_SEGMENT_NEXT(struct ProgramSegment* seg, uint8* p
 }
 
 //===============================================
-// 12) SEG FIRST [TO BE USED IN PROG_SEG_FOREACH]:
+// 14) SEG FIRST [TO BE USED IN PROG_SEG_FOREACH]:
 //===============================================
 struct ProgramSegment PROGRAM_SEGMENT_FIRST( uint8* ptr_program_start)
 {
@@ -1175,7 +1196,7 @@ struct ProgramSegment PROGRAM_SEGMENT_FIRST( uint8* ptr_program_start)
 
 
 //===============================================================================
-// 13) CLEANUP MODIFIED BUFFER [TO BE USED AS LAST STEP WHEN ADD ENV TO EXIT Q]:
+// 15) CLEANUP MODIFIED BUFFER [TO BE USED AS LAST STEP WHEN ADD ENV TO EXIT Q]:
 //===============================================================================
 void cleanup_buffers(struct Env* e)
 {
@@ -1186,13 +1207,18 @@ void cleanup_buffers(struct Env* e)
 	//	struct freeFramesCounters ffc = calculate_available_frames();
 	//	cprintf("[%s] bef, mod = %d, fb = %d, fnb = %d\n",curenv->prog_name, ffc.modified, ffc.freeBuffered, ffc.freeNotBuffered);
 
-	acquire_spinlock(&MemFrameLists.mfllock);
+	bool lock_already_held = holding_kspinlock(&MemFrameLists.mfllock);
+	if (!lock_already_held)
+	{
+		acquire_kspinlock(&MemFrameLists.mfllock);
+	}
 	{
 		LIST_FOREACH(ptr_fi, &MemFrameLists.modified_frame_list)
-		{
+						{
 			if(ptr_fi->proc == e)
 			{
-				pt_clear_page_table_entry(ptr_fi->proc->env_page_directory,ptr_fi->bufferedVA);
+				/*MUST UN-COMMENT THIS LINE*/
+				//pt_clear_page_table_entry(ptr_fi->proc->env_page_directory,ptr_fi->va);
 
 				//cprintf("==================\n");
 				//cprintf("[%s] ptr_fi = %x, ptr_fi next = %x \n",curenv->prog_name, ptr_fi, LIST_NEXT(ptr_fi));
@@ -1203,10 +1229,12 @@ void cleanup_buffers(struct Env* e)
 				//cprintf("[%s] ptr_fi = %x, ptr_fi next = %x, saved next = %x \n", curenv->prog_name ,ptr_fi, LIST_NEXT(ptr_fi), ___ptr_next);
 				//cprintf("==================\n");
 			}
-		}
+						}
 	}
-	release_spinlock(&MemFrameLists.mfllock);
-
+	if (!lock_already_held)
+	{
+		release_kspinlock(&MemFrameLists.mfllock);
+	}
 	//	cprintf("[%s] finished deleting modified frames at the end of env\n", curenv->prog_name);
 	//	struct freeFramesCounters ffc2 = calculate_available_frames();
 	//	cprintf("[%s] aft, mod = %d, fb = %d, fnb = %d\n",curenv->prog_name, ffc2.modified, ffc2.freeBuffered, ffc2.freeNotBuffered);

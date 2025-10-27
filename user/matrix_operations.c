@@ -238,7 +238,7 @@ void InitializeSemiRandom(int **Elements, int NumOfElements)
 	{
 		for (j = 0 ; j < NumOfElements ; j++)
 		{
-			(Elements)[i][j] =  RAND(0, NumOfElements) ;
+			(Elements)[i][j] =  RANDU(0, NumOfElements) ;
 			//	cprintf("i=%d\n",i);
 		}
 	}

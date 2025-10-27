@@ -15,7 +15,7 @@
  */
 
 /*2016*/
-#define USE_KHEAP 0
+#define USE_KHEAP 1
 
 // Global descriptor numbers
 #define GD_KT     0x08     // kernel text
@@ -81,7 +81,8 @@
  *    PFTEMP ------->  |       Empty Memory (*)       |        PTSIZE
  *                     |                              |
  *    UTEMP -------->  +------------------------------+ 0x00400000      --+
- *                     |       Empty Memory (*)       |                   |
+ *    PGFLTEMP ------->|          PAGE_SIZE       	  |                   |
+ *    				   |       Empty Memory (*)       |                   |
  *                     | - - - - - - - - - - - - - - -|                   |
  *                     |  User STAB Data (optional)   |                 PTSIZE
  *    USTABDATA ---->  +------------------------------+ 0x00200000        |
@@ -149,7 +150,8 @@
 // Used for temporary page mappings for the user page-fault handler
 // (should not conflict with other temporary page mappings)
 #define PFTEMP		(UTEMP + PTSIZE - PAGE_SIZE)
-#define PGFLTEMP 	(UTEMP - PAGE_SIZE)
+// 2024: Used for temporary page mappings for the page file (update function)
+#define PGFLTEMP	(UTEMP - PAGE_SIZE)
 // The location of the user-level STABS data structure
 #define USTABDATA	(PTSIZE / 2)
 
@@ -212,9 +214,7 @@ struct FrameInfo {
 	// frames allocated at boot time using memory_manager.c's
 	// boot_allocate_space do not have valid reference count fields.
 	uint16 references;
-
 	struct Env *proc;
-	uint32 bufferedVA;
 	unsigned char isBuffered;
 };
 

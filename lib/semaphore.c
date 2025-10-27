@@ -4,29 +4,21 @@
 
 struct semaphore create_semaphore(char *semaphoreName, uint32 value)
 {
-	//COMMENT THE FOLLOWING LINE BEFORE START CODING
-	panic("create_semaphore is not implemented yet");
-	//Your Code is Here...
+	panic("create_semaphore() is not implemented yet...!!");
 }
 struct semaphore get_semaphore(int32 ownerEnvID, char* semaphoreName)
 {
-	//COMMENT THE FOLLOWING LINE BEFORE START CODING
-	panic("get_semaphore is not implemented yet");
-	//Your Code is Here...
+	panic("get_semaphore() is not implemented yet...!!");
 }
 
 void wait_semaphore(struct semaphore sem)
 {
-	//COMMENT THE FOLLOWING LINE BEFORE START CODING
-	panic("wait_semaphore is not implemented yet");
-	//Your Code is Here...
+	panic("wait_semaphore() is not implemented yet...!!");
 }
 
 void signal_semaphore(struct semaphore sem)
 {
-	//COMMENT THE FOLLOWING LINE BEFORE START CODING
-	panic("signal_semaphore is not implemented yet");
-	//Your Code is Here...
+	panic("signal_semaphore() is not implemented yet...!!");
 }
 
 int semaphore_count(struct semaphore sem)

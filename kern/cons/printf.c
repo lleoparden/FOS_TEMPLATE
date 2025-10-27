@@ -5,6 +5,7 @@
 #include <inc/stdio.h>
 #include <inc/stdarg.h>
 #include <kern/cpu/cpu.h>
+#include <kern/cons/console.h>
 
 
 static void
@@ -26,7 +27,6 @@ vcprintf(const char *fmt, va_list ap)
 int
 cprintf(const char *fmt, ...)
 {
-	//2024 - better to use locks instead (to support multiprocessors)
 	int cnt;
 	pushcli();	//disable interrupts
 	{
@@ -41,3 +41,23 @@ cprintf(const char *fmt, ...)
 	return cnt;
 }
 
+// *************** This text coloring feature is implemented by *************
+// ********** Abd-Alrahman Zedan From Team Frozen-Bytes - FCIS'24-25 ********
+int
+cprintf_colored(int textClr, const char *fmt, ...)
+{
+	current_text_color = (textClr << 8) ;
+	int cnt;
+	pushcli();	//disable interrupts
+	{
+		va_list ap;
+
+		va_start(ap, fmt);
+		cnt = vcprintf(fmt, ap);
+		va_end(ap);
+	}
+	popcli();	//enable interrupts
+	current_text_color = TEXT_DEFAULT_CLR; //restore default text color
+
+	return cnt;
+}

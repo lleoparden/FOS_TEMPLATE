@@ -7,7 +7,7 @@
 #include <kern/proc/user_programs.h>
 #include <inc/types.h>
 #include <kern/cpu/sched_helpers.h>
-#include <kern/conc/spinlock.h>
+#include "../conc/kspinlock.h"
 
 
 //========================================================
@@ -38,5 +38,6 @@ void env_start(void);				//called only at the very first scheduling by scheduler
 void env_exit(void);				//add the running env to the EXIT queue, then reinvoke the scheduler
 
 ///===================================================================================
+//void env_run(struct Env *e) __attribute__((noreturn));
 
 #endif // !FOS_KERN_ENV_H

@@ -19,14 +19,14 @@
 #define HISTORY_MAX 19
 int last_command_idx = -1;
 char command_history[HISTORY_MAX+1][BUFLEN];
-char empty[BUFLEN];
+char empty_buf[BUFLEN];
 
 void clearandwritecommand(int* i, int commandidx, char* buf, int *last_index) {
 	for (int j = 0; j < *i; j++) {
 		cputchar('\b');
 	}
 	int len = strlen(command_history[commandidx]);
-	memcpy(buf, empty, BUFLEN);
+	memcpy(buf, empty_buf, BUFLEN);
 	for (*i = 0; *i < len; (*i)++) {
 		cputchar(command_history[commandidx][*i]);
 		buf[*i] = command_history[commandidx][*i];
@@ -40,7 +40,7 @@ void RoundAutoCompleteCommandWithTheSamePrefix(int old_buf_len, char* prefix_ele
 		cputchar('\b');
 	}
 	int len = strlen(prefix_element);
-	memcpy(buf, empty, BUFLEN);
+	memcpy(buf, empty_buf, BUFLEN);
 	for (*i = 0; *i < len; (*i)++) {
 		cputchar(prefix_element[*i]);
 		buf[*i] = prefix_element[*i];

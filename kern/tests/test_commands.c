@@ -34,6 +34,43 @@ int CCP(uint32 *ptr_dir, uint32 ptr1, uint32 ptr2, uint32 size, int ref, uint32 
 
 int hasExpectedCommands(char **expectedCommands, int commandsCount);
 int getIndexOfCommand(const char *commandName);
+/*int TestAutoCompleteCommand()
+{
+	cprintf("Automatic Testing of Autocomplete:\n");
+	cprintf("\n========================\n");
+	//	cprintf("========================\n");
+	//	cprintf("Q2 Test: manually try the test cases in the doc. \n..."
+	//			"OR, you can do it automatically by un-commenting the code in this function, it should output the same results in the Examples exist in the MS1 ppt\n");
+	//
+	//	int retValue = 0;
+	int i = 0;
+
+	// CASE1:
+	// should execute the kernel_info command
+	cprintf("==>Testing now AUTOCOMPLETE for: kernel_info\n");
+	char cr0[100] = "kernel_info";
+	execute_command(cr0);
+	cprintf("=================\n\n");
+
+	// CASE2: should print the commands that start with he ---> Shall print (help)
+	cprintf("==>Testing now AUTOCOMPLETE for: he\n");
+	char cr2[100] = "he";
+	execute_command(cr2);
+	cprintf("=================\n\n");
+
+	// CASE3: should print the commands that start with ru ---> Shall print (rum, rub, rut, run, runall) .. Each in a separate line
+	cprintf("==>Testing now AUTOCOMPLETE for: ru\n");
+	char cr3[100] = "ru";
+	execute_command(cr3);
+	cprintf("=================\n\n");
+
+	// CASE4: should print unknown command
+	cprintf("==>Testing now AUTOCOMPLETE for: smm\n");
+	char cr4[100] = "smm";
+	execute_command(cr4);
+	cprintf("=================\n\n");
+	return 0;
+}*/
 
 int hasExpectedCommands(char **expectedCommands, int commandsCount)
 {
@@ -74,7 +111,7 @@ int TestAutoCompleteCommand()
 	int ret = process_command(ARRAY_LENGTH(args1), args1);
 	cprintf("==>Testing now AUTOCOMPLETE for: kernel_info\n");
 	if (ret == getIndexOfCommand(args1[0]) && LIST_EMPTY(&foundCommands))
-		eval += 15;
+		eval += 5;
 	else
 		cprintf("#1: WRONG - process_command return wrong value or foundCommands is not empty.\n");
 
@@ -88,35 +125,43 @@ int TestAutoCompleteCommand()
 	else
 		cprintf("#2: WRONG - process_command return wrong value or foundCommands is not empty.\n");
 
-	// CASE3: should print invalid number of args
+	// CASE3.1: should print invalid number of args
 	cprintf("==>Testing now AUTOCOMPLETE for: wm\n");
-	char *args3[] = {"wm"};
-	cprintf("va of args3 = %x, *args3 = %x\n", args3, *args3);
-	ret = process_command(ARRAY_LENGTH(args3), args3);
-	if (ret == CMD_INV_NUM_ARGS && hasExpectedCommands(args3, 1))
+	char *args3_1[] = {"wm"};
+	ret = process_command(ARRAY_LENGTH(args3_1), args3_1);
+	if (ret == CMD_INV_NUM_ARGS && hasExpectedCommands(args3_1, 1))
 		eval += 15;
 	else
-		cprintf("#3: WRONG - process_command return wrong value or foundCommands contains wrong values.\n");
+		cprintf("#3.1: WRONG - process_command return wrong value or foundCommands contains wrong values.\n");
+
+	// CASE3.2: should print invalid number of args
+	cprintf("==>Testing now AUTOCOMPLETE for: lru\n");
+	char *args3_2[] = {"lru", "2", "1"};
+	ret = process_command(ARRAY_LENGTH(args3_2), args3_2);
+	if (ret == CMD_INV_NUM_ARGS && hasExpectedCommands(args3_2, 1))
+		eval += 15;
+	else
+		cprintf("#3.2: WRONG - process_command return wrong value or foundCommands contains wrong values.\n");
 
 	// CASE4: should print invalid command
 	cprintf("==>Testing now AUTOCOMPLETE for: smm\n");
 	char *args4[] = {"smm"};
 	ret = process_command(ARRAY_LENGTH(args4), args4);
 	if (ret == CMD_INVALID && LIST_SIZE(&foundCommands) == 0)
-		eval += 15;
+		eval += 10;
 	else
 		cprintf("#4: WRONG - process_command return wrong value or foundCommands is not empty.\n");
 
-	// CASE5: should print the commands that start with he ---> Shall print (help)
+	// CASE5: should print the commands that contains he
 	cprintf("==>Testing now AUTOCOMPLETE for: he\n");
 	char *args5[] = {"he"};
 	ret = process_command(ARRAY_LENGTH(args5), args5);
 	if (ret == CMD_MATCHED && hasExpectedCommands((char *[]){"help", "sched?", "uhbestfit", "uhnextfit", "uheap?", "khbestfit", "khnextfit", "kheap?", "schedRR", "schedTest", "schedBSD", "schedMLFQ"}, 12))
-		eval += 10;
+		eval += 15;
 	else
 		cprintf("#5: WRONG - process_command return wrong value or foundCommands is has wrong values.\n");
 
-	// CASE6: should print the commands that start with ru ---> Shall print (rum, rub, rut, run, runall) .. Each in a separate line
+	// CASE6: should print the commands that contains ru ---> Shall print (rum, rub, rut, run, runall) .. Each in a separate line
 	cprintf("==>Testing now AUTOCOMPLETE for: ru\n");
 	char *args6[] = {"ru"};
 	ret = process_command(ARRAY_LENGTH(args6), args6);
@@ -130,7 +175,7 @@ int TestAutoCompleteCommand()
 	char *args7[] = {"load", "game"};
 	ret = process_command(ARRAY_LENGTH(args7), args7);
 	if (ret == getIndexOfCommand(args7[0]) && LIST_EMPTY(&foundCommands))
-		eval += 10;
+		eval += 5;
 	else
 		cprintf("#7: WRONG - process_command return wrong value or foundCommands is not empty.\n");
 
@@ -143,8 +188,9 @@ int TestAutoCompleteCommand()
 	else
 		cprintf("#8: WRONG - process_command return wrong value or foundCommands is not empty.\n");
 
-	cprintf("test autocomplete completed. Evaluation = %d%%\n", eval);
-	cprintf("=================\n\n");
+//	cprintf("test autocomplete completed. Evaluation = %d%%\n", eval);
+//	cprintf("=================\n\n");
+	cprintf("[AUTO_GR@DING_PARTIAL]%d\n", eval);
 
 	return 0;
 }
@@ -1122,9 +1168,8 @@ int test_share_chunk()
 	cprintf("\nCASE II: Destination page(s) not exist [Supervisor] [25%]\n") ;
 	{
 		numOfFreeFramesBefore = sys_calculate_free_frames();
-		cprintf("1\n");
+
 		int ret = share_chunk(proc_directory, 0xF0000000,0x40000000, 32*mega, PERM_WRITEABLE | PERM_AVAILABLE) ;
-		cprintf("2\n");
 
 		numOfFreeFramesAfter = sys_calculate_free_frames();
 
@@ -1136,8 +1181,6 @@ int test_share_chunk()
 		if (correct) eval += 5 ;
 		correct = 1 ;
 
-		cprintf("3\n");
-
 		int chk_cnt = 1 ;
 		if (CCP(proc_directory, 0xF0000000, 0x40000000, 32*mega, -1, 0xE03, 0xE07, 0x003, 0x007, CHK_SHARE) == 0)
 		{
@@ -1145,7 +1188,6 @@ int test_share_chunk()
 			correct = 0;
 			chk_cnt = 0 ;
 		}
-		cprintf("4\n");
 
 		if (CCP(proc_directory, 0xF0000000, 0x40000000, 12*kilo, 2, 0xE03, 0xE07, 0x003, 0x007, CHK_SHARE) == 0)
 		{
@@ -1154,8 +1196,6 @@ int test_share_chunk()
 		}
 		if (correct) eval += 5 ;
 		correct = 1 ;
-
-		cprintf("5\n");
 
 		extern char end_of_kernel[];
 		uint32 endRange = ((uint32)end_of_kernel - KERNEL_BASE);

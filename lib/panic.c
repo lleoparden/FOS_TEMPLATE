@@ -16,7 +16,7 @@ _panic(const char *file, int line, const char *fmt,...)
 	// Print the panic message
 	if (argv0)
 		cprintf("%s: ", argv0);
-	cprintf("user panic in %s at %s:%d: ", binaryname, file, line);
+	cprintf_colored(TEXT_PANIC_CLR, "user [EVAL_FINAL]panic in %s at %s:%d: ", binaryname, file, line);
 	vcprintf(fmt, ap);
 	vcprintf("\n", NULL);
 

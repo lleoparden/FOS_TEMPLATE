@@ -187,6 +187,27 @@ void free_block(void *va)
 
 	//TODO: [PROJECT'25.GM#1] DYNAMIC ALLOCATOR - #4 free_block
 	//Your code is here
+
+	uint32 page = ((uint32)va - dynAllocStart)/PAGE_SIZE;
+	struct PageInfoElement* pageInfo = &pageBlockInfoArr[page];
+
+	uint32 blockSize = pageInfo->block_size;
+	int index = get_free_block_index(blockSize);
+
+	LIST_INSERT_HEAD(&freeBlockLists[index],(struct BlockElement*)va);
+	pageInfo->num_of_free_blocks++;
+
+
+	//if all blocks are free, return page
+	if(pageInfo->num_of_free_blocks == PAGE_SIZE/blockSize){
+		LIST_REMOVE(&freePagesList,pageInfo);
+		void* page = (void*)to_page_va(pageInfo);
+		return_page(page);
+		pageInfo->block_size = 0;
+		pageInfo->num_of_free_blocks = 0;
+		LIST_INSERT_HEAD(&freePagesList,pageInfo);
+	}
+
 	//Comment the following line
 	panic("free_block() Not implemented yet");
 }

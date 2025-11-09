@@ -43,6 +43,8 @@ uint32 to_page_va(struct PageInfoElement* ptrPageInfo);
 //USER: implemented inside kern/mem/uheap.c
 int get_page(void* va);		//get a page from the Kernel Page Allocator for DA (i.e. Allocate it)
 void return_page(void* va);	//return a page from the DA to Kernel Page Allocator (i.e. Free It)
+int get_free_block_index(uint32 size);
+uint32 round_up_to_power_of_2(uint32 x);
 //=============================================================================
 
 /*2025*/ //REQUIRED FUNCTIONS

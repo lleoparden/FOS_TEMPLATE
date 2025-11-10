@@ -71,10 +71,50 @@ void* kmalloc(unsigned int size)
 //=================================
 void kfree(void* virtual_address)
 {
-	//TODO: [PROJECT'25.GM#2] KERNEL HEAP - #2 kfree
-	//Your code is here
-	//Comment the following line
-	panic("kfree() is not implemented yet...!!");
+
+//	 If virtual address inside the [BLOCK ALLOCATOR] range
+	//Use dynamic allocator to free the given address
+//	If virtual address inside the [PAGE ALLOCATOR] range
+	//FREE the space of the given address from RAM
+//	Else (i.e. invalid address): should panic(…)
+
+	uint32 va = (uint32)virtual_address;
+	uint32 *ptr_table = NULL;
+	if (va >= dynAllocStart && va < dynAllocEnd )
+		free_block(virtual_address);
+
+	else if(va >= kheapPageAllocStart && va < kheapPageAllocBreak )
+	{
+		struct FrameInfo *fi= get_frame_info(ptr_page_directory, va, &ptr_table);
+		if(fi !=NULL)
+		{
+			uint32 size= fi->allocation_size;
+			for(int i=0;i<size;i++)
+			{
+				uint32 current_vadd= va +(i*PAGE_SIZE);
+				unmap_frame(ptr_page_directory,current_vadd);
+			}
+
+			uint32 end_of_freed_frames= va +(size*PAGE_SIZE);
+			if (end_of_freed_frames==kheapPageAllocBreak)
+			{
+				while(kheapPageAllocBreak> kheapPageAllocStart)
+				{
+					uint32 current_page= kheapPageAllocBreak-PAGE_SIZE;
+					struct FrameInfo *currentfi= get_frame_info(ptr_page_directory, current_page, &ptr_table);
+					if (currentfi ==NULL)
+					{
+					kheapPageAllocBreak-=PAGE_SIZE;
+					}
+					else break;
+				}
+			}
+		}
+		else panic("Null Frame Info!");
+	}
+
+	else panic("Virtual Address Not Found!");
+
 }
 
 //=================================

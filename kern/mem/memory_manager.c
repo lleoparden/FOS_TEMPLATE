@@ -409,6 +409,7 @@ int map_frame(uint32 *ptr_page_directory, struct FrameInfo *ptr_frame_info, uint
 	//If already mapped
 	if ((page_table_entry & PERM_PRESENT) == PERM_PRESENT)
 	{
+		ptr_frame_info->va=virtual_address;
 		//on this pa, then do nothing
 		if (EXTRACT_ADDRESS(page_table_entry) == physical_address)
 			return 0;
@@ -424,6 +425,7 @@ int map_frame(uint32 *ptr_page_directory, struct FrameInfo *ptr_frame_info, uint
 	uint32 pte_available_bits = ptr_page_table[PTX(virtual_address)] & PERM_AVAILABLE;
 	ptr_page_table[PTX(virtual_address)] = CONSTRUCT_ENTRY(physical_address , pte_available_bits | perm | PERM_PRESENT);
 	/*********************************************************************************/
+	ptr_frame_info->va=virtual_address;
 
 	return 0;
 }
@@ -481,6 +483,7 @@ void unmap_frame(uint32 *ptr_page_directory, uint32 virtual_address)
 		if (ptr_frame_info->isBuffered && !CHECK_IF_KERNEL_ADDRESS((uint32)virtual_address))
 			cprintf("WARNING: Freeing BUFFERED frame at va %x!!!\n", virtual_address) ;
 		decrement_references(ptr_frame_info);
+		ptr_frame_info->va =0;
 
 		/*********************************************************************************/
 		/*NEW'23 el7:)

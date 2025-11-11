@@ -53,9 +53,9 @@ void initialize_dynamic_allocator(uint32 daStart, uint32 daEnd)
 
 
 	for(int i =0; i < ((daEnd-daStart)/PAGE_SIZE); i++){
-	 pageBlockInfoArr[i].block_size=0;
-     pageBlockInfoArr[i].num_of_free_blocks=0;
-    LIST_INSERT_HEAD(&freePagesList,&pageBlockInfoArr[i]);
+		pageBlockInfoArr[i].block_size=0;
+     	pageBlockInfoArr[i].num_of_free_blocks=0;
+    	LIST_INSERT_TAIL(&freePagesList,&pageBlockInfoArr[i]);
 	}
 
 }
@@ -93,77 +93,90 @@ void *alloc_block(uint32 size)
 	//==================================================================================
 	//TODO: [PROJECT'25.GM#1] DYNAMIC ALLOCATOR - #3 alloc_block
 	//Your code is here
-	uint32 workingSize = size;
+	//we have 3 cases other than the memory full case
+	//first case : there is a free block already in the freeblocklists
+	//second case : there is a free page already in the freepageslist
+	//third case : only free blocks are larger size
+
+	uint32 blocksize = size;
 	if(size< DYN_ALLOC_MIN_BLOCK_SIZE){
-		workingSize = DYN_ALLOC_MIN_BLOCK_SIZE;
+		blocksize = DYN_ALLOC_MIN_BLOCK_SIZE;
 	}
 	else{
-		workingSize = round_up_to_power_of_2(workingSize);
+		blocksize = round_up_to_power_of_2(blocksize);
 	}
 
-	int index = get_free_block_index(workingSize);
+	int index = get_free_block_index(blocksize);
 
-	//first case: free block exists
-	if(LIST_FIRST(&freeBlockLists[index])!=NULL){
-		struct BlockElement *blk = LIST_FIRST(&freeBlockLists[index]);
-		LIST_REMOVE(&freeBlockLists[index],blk);
+	struct BlockElement* tmpBlock;
 
-		//update page info
-		uint32 page = ((uint32)blk - dynAllocStart)/PAGE_SIZE;
-		pageBlockInfoArr[page].num_of_free_blocks--;
+	//first case
+	if(!LIST_EMPTY(&freeBlockLists[index])){
+		tmpBlock=LIST_FIRST(&freeBlockLists[index]);
+		LIST_REMOVE(&freeBlockLists[index],tmpBlock);
 
-		return (void*)blk;
+		//update page
+		uint32 page = ((uint32)tmpBlock - dynAllocStart)/PAGE_SIZE;
+		struct PageInfoElement* pageInfo = &pageBlockInfoArr[page];
+		pageInfo->num_of_free_blocks--;
+
+		return tmpBlock;
 	}
+	//second case
+	else if(!LIST_EMPTY(&freePagesList)){
+		struct PageInfoElement* pageInfo = LIST_FIRST(&freePagesList);
+		LIST_REMOVE(&freePagesList,pageInfo);
 
-	//second case: free page exists
-	else if(LIST_FIRST(&freePagesList)!=NULL){
-		struct PageInfoElement* workingPage = LIST_FIRST(&freePagesList);
-		LIST_REMOVE(&freePagesList,workingPage);
+		pageInfo->block_size=blocksize;
+		pageInfo->num_of_free_blocks=PAGE_SIZE/blocksize;
 
-		void* pageVA = (void*)to_page_va(workingPage);
-
-		if (get_page(pageVA) < 0) {
+		if (get_page((void*)to_page_va(pageInfo)) < 0) {
         panic("alloc_block: get_page() failed");
     	}
 
-		workingPage->block_size = workingSize;
-		workingPage->num_of_free_blocks = PAGE_SIZE/workingSize;
-
-		uint8* pointer = pageVA;
-		for(uint32 i = 0; i< workingPage->num_of_free_blocks; i++){
-			struct BlockElement* current = (struct BlockElement*)(pointer + i * workingSize);
-			LIST_INSERT_HEAD(&freeBlockLists[index],current);
+		uint32 tmppoiter = to_page_va(pageInfo);
+		//dividing pages into blocks and adding them to the freeblocklist
+		for(int i =0; i< pageInfo->num_of_free_blocks;i++){
+			LIST_INSERT_HEAD(&freeBlockLists[index],(struct BlockElement*)tmppoiter);
+			tmppoiter+=blocksize;
 		}
 
-		struct BlockElement *blk = LIST_FIRST(&freeBlockLists[index]);
-		LIST_REMOVE(&freeBlockLists[index],blk);
+		if(!LIST_EMPTY(&freeBlockLists[index])){
+			tmpBlock=LIST_FIRST(&freeBlockLists[index]);
+			LIST_REMOVE(&freeBlockLists[index],tmpBlock);
 
-		//update page info
-		uint32 page = ((uint32)blk - dynAllocStart)/PAGE_SIZE;
-		pageBlockInfoArr[page].num_of_free_blocks--;
+			//update page
+			uint32 page = ((uint32)tmpBlock - dynAllocStart)/PAGE_SIZE;
+			struct PageInfoElement* pageInfo = &pageBlockInfoArr[page];
+			pageInfo->num_of_free_blocks--;
 
-		return (void*)blk;
+			return tmpBlock;
+		}
+		
 	}
+	else{
+		for(int i=index+1; i <= LOG2_MAX_SIZE-LOG2_MIN_SIZE;i++){
+			if(!LIST_EMPTY(&freeBlockLists[i])){
+				tmpBlock=LIST_FIRST(&freeBlockLists[i]);
+				LIST_REMOVE(&freeBlockLists[i],tmpBlock);
 
-	//third case: no free page or block
-	for(int i = index +1; i<= (LOG2_MAX_SIZE-LOG2_MIN_SIZE);i++)
-	{
-		if(LIST_FIRST(&freeBlockLists[i])!=NULL){
-			struct BlockElement *blk = LIST_FIRST(&freeBlockLists[i]);
-			LIST_REMOVE(&freeBlockLists[i],blk);
+				//update page
+				uint32 page = ((uint32)tmpBlock - dynAllocStart)/PAGE_SIZE;
+				struct PageInfoElement* pageInfo = &pageBlockInfoArr[page];
+				pageInfo->num_of_free_blocks--;
 
-			//update page info
-			uint32 page = ((uint32)blk - dynAllocStart)/PAGE_SIZE;
-			pageBlockInfoArr[page].num_of_free_blocks--;
-
-			return (void*)blk;
+				return tmpBlock;
+			}
 		}
 	}
+
+	
+
+
+
 
 	//fourth case: no free block
 	panic("Memory full");
-
-
 
 	//Comment the following line
 	//panic("alloc_block() Not implemented yet");
@@ -191,25 +204,29 @@ void free_block(void *va)
 	uint32 page = ((uint32)va - dynAllocStart)/PAGE_SIZE;
 	struct PageInfoElement* pageInfo = &pageBlockInfoArr[page];
 
-	uint32 blockSize = pageInfo->block_size;
-	int index = get_free_block_index(blockSize);
+	uint32 blocksize = pageInfo->block_size;
+	int index = get_free_block_index(blocksize);
 
 	LIST_INSERT_HEAD(&freeBlockLists[index],(struct BlockElement*)va);
 	pageInfo->num_of_free_blocks++;
 
 
-	//if all blocks are free, return page
-	if(pageInfo->num_of_free_blocks == PAGE_SIZE/blockSize){
-		LIST_REMOVE(&freePagesList,pageInfo);
-		void* page = (void*)to_page_va(pageInfo);
-		return_page(page);
-		pageInfo->block_size = 0;
-		pageInfo->num_of_free_blocks = 0;
-		LIST_INSERT_HEAD(&freePagesList,pageInfo);
+	//incase all pages are now free
+	if(pageInfo->num_of_free_blocks == PAGE_SIZE/blocksize){
+        uint32 tmppoiter = to_page_va(pageInfo);
+		//recollecting divided pages into blocks
+		for(int i =0; i< PAGE_SIZE/blocksize; i++){
+			LIST_REMOVE(&freeBlockLists[index],(struct BlockElement*)tmppoiter);
+			tmppoiter+=blocksize;
+		}
+        return_page((void*)to_page_va(pageInfo));
+        pageInfo->block_size = 0;
+        pageInfo->num_of_free_blocks = 0;
+        LIST_INSERT_HEAD(&freePagesList, pageInfo);
 	}
 
 	//Comment the following line
-	panic("free_block() Not implemented yet");
+	// panic("free_block() Not implemented yet");
 }
 
 //==================================================================================//

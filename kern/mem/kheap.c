@@ -66,76 +66,86 @@ void *kmalloc(unsigned int size)
 	size = ROUNDUP(size, PAGE_SIZE);
 
 	if (size == 0)
-        return NULL;
+		return NULL;
 
-    if (size <= DYN_ALLOC_MAX_BLOCK_SIZE)
-        return alloc_block(size);
+	if (size <= DYN_ALLOC_MAX_BLOCK_SIZE)
+		return alloc_block(size);
 
-    size = ROUNDUP(size, PAGE_SIZE);
+	uint32 worstfit_size = 0;
+	uint32 worstfit_start = 0;
+	uint32 ptr = kheapPageAllocStart;
 
-    uint32 worstfit_size = 0;
-    uint32 worstfit_start = 0;
-    uint32 ptr = kheapPageAllocStart;
+	if (kheapPageAllocBreak == kheapPageAllocStart)
+		goto extend_heap;
 
-    while (ptr < kheapPageAllocBreak)
-    {
-        struct FrameInfo *info = get_frame_info(ptr_page_directory, ptr, NULL);
+	while (ptr < kheapPageAllocBreak)
+	{
+		struct FrameInfo *info = get_frame_info(ptr_page_directory, ptr, NULL);
 
-        if (info != NULL)
-        {
-            ptr += info->allocation_size * PAGE_SIZE;
-        }
-        else
-        {
-            uint32 fara8_start = ptr;
-            uint32 fara8_size = 0;
+		if (info != NULL)
+		{
+			ptr += info->allocation_size * PAGE_SIZE;
+		}
+		else
+		{
+			uint32 fara8_start = ptr;
+			uint32 fara8_size = 0;
 
-            while (ptr < kheapPageAllocBreak)
-            {
-                info = get_frame_info(ptr_page_directory, ptr, NULL);
-                if (info != NULL)
-                    break;
-                ptr += PAGE_SIZE;
-                fara8_size += PAGE_SIZE;
-            }
+			while (ptr < kheapPageAllocBreak)
+			{
+				info = get_frame_info(ptr_page_directory, ptr, NULL);
+				if (info != NULL)
+					break;
+				ptr += PAGE_SIZE;
+				fara8_size += PAGE_SIZE;
+			}
 
+			if (fara8_size == size)
+			{
+				for (uint32 i = 0; i < size / PAGE_SIZE; i++)
+					alloc_page(ptr_page_directory, fara8_start + (i * PAGE_SIZE), PERM_WRITEABLE, 1);
 
-            if (fara8_size == size)
-            {
-                for (uint32 i = 0; i < size / PAGE_SIZE; i++)
-                    alloc_page(ptr_page_directory, fara8_start + (i * PAGE_SIZE), PERM_WRITEABLE, 1);
+				struct FrameInfo *fi = get_frame_info(ptr_page_directory, fara8_start, NULL);
+				fi->allocation_size = size / PAGE_SIZE;
+				return (void *)fara8_start;
+			}
 
-                struct FrameInfo *fi = get_frame_info(ptr_page_directory, fara8_start, NULL);
-                fi->allocation_size = size / PAGE_SIZE;
-                return (void*)fara8_start;
-            }
+			else if (fara8_size > worstfit_size)
+			{
+				worstfit_size = fara8_size;
+				worstfit_start = fara8_start;
+			}
+		}
+	}
 
-            else if (fara8_size > worstfit_size)
-            {
-                worstfit_size  = fara8_size;
-                worstfit_start = fara8_start;
-            }
-        }
-    }
+	if (worstfit_size >= size)
+	{
+		for (uint32 i = 0; i < size / PAGE_SIZE; i++)
+			alloc_page(ptr_page_directory, worstfit_start + (i * PAGE_SIZE), PERM_WRITEABLE, 1);
 
+		struct FrameInfo *fi = get_frame_info(ptr_page_directory, worstfit_start, NULL);
+		fi->allocation_size = size / PAGE_SIZE;
+		return (void *)worstfit_start;
+	}
 
-    if (worstfit_size >= size)
-    {
-        for (uint32 i = 0; i < size / PAGE_SIZE; i++)
-            alloc_page(ptr_page_directory, worstfit_start + (i * PAGE_SIZE), PERM_WRITEABLE, 1);
+extend_heap:
+	if (kheapPageAllocBreak + size <= KERNEL_HEAP_MAX)
+	{
+		uint32 va = kheapPageAllocBreak;
+		for (uint32 i = 0; i < size / PAGE_SIZE; i++)
+			alloc_page(ptr_page_directory, va + (i * PAGE_SIZE), PERM_WRITEABLE, 1);
 
-        struct FrameInfo *fi = get_frame_info(ptr_page_directory, worstfit_start, NULL);
-        fi->allocation_size = size / PAGE_SIZE;
-        return (void*)worstfit_start;
-    }
+		struct FrameInfo *fi = get_frame_info(ptr_page_directory, va, NULL);
+		fi->allocation_size = size / PAGE_SIZE;
 
-    return NULL; 
+		kheapPageAllocBreak += size;
+		return (void *)va;
+	}
 
+	return NULL;
 
 	// TODO: [PROJECT'25.BONUS#3] FAST PAGE ALLOCATOR
 }
-
-
 
 //=================================
 // [2] FREE SPACE FROM KERNEL HEAP:

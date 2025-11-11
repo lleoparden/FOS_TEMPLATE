@@ -14,12 +14,12 @@
 //==============================================
 // [1] INITIALIZE KERNEL HEAP:
 //==============================================
-//TODO: [PROJECT'25.GM#2] KERNEL HEAP - #0 kheap_init [GIVEN]
-//Remember to initialize locks (if any)
+// TODO: [PROJECT'25.GM#2] KERNEL HEAP - #0 kheap_init [GIVEN]
+// Remember to initialize locks (if any)
 void kheap_init()
 {
 	//==================================================================================
-	//DON'T CHANGE THESE LINES==========================================================
+	// DON'T CHANGE THESE LINES==========================================================
 	//==================================================================================
 	{
 		initialize_dynamic_allocator(KERNEL_HEAP_START, KERNEL_HEAP_START + DYN_ALLOC_MAX_SIZE);
@@ -34,7 +34,7 @@ void kheap_init()
 //==============================================
 // [2] GET A PAGE FROM THE KERNEL FOR DA:
 //==============================================
-int get_page(void* va)
+int get_page(void *va)
 {
 	int ret = alloc_page(ptr_page_directory, ROUNDDOWN((uint32)va, PAGE_SIZE), PERM_WRITEABLE, 1);
 	if (ret < 0)
@@ -45,7 +45,7 @@ int get_page(void* va)
 //==============================================
 // [3] RETURN A PAGE FROM THE DA TO KERNEL:
 //==============================================
-void return_page(void* va)
+void return_page(void *va)
 {
 	unmap_frame(ptr_page_directory, ROUNDDOWN((uint32)va, PAGE_SIZE));
 }
@@ -56,65 +56,138 @@ void return_page(void* va)
 //===================================
 // [1] ALLOCATE SPACE IN KERNEL HEAP:
 //===================================
-void* kmalloc(unsigned int size)
+void *kmalloc(unsigned int size)
 {
-	//TODO: [PROJECT'25.GM#2] KERNEL HEAP - #1 kmalloc
-	//Your code is here
-	//Comment the following line
-	kpanic_into_prompt("kmalloc() is not implemented yet...!!");
+	// TODO: [PROJECT'25.GM#2] KERNEL HEAP - #1 kmalloc
+	// Your code is here
+	// Comment the following line
+	//  kpanic_into_prompt("kmalloc() is not implemented yet...!!");
 
-	//TODO: [PROJECT'25.BONUS#3] FAST PAGE ALLOCATOR
+	size = ROUNDUP(size, PAGE_SIZE);
+
+	if (size == 0)
+        return NULL;
+
+    if (size <= DYN_ALLOC_MAX_BLOCK_SIZE)
+        return alloc_block(size);
+
+    size = ROUNDUP(size, PAGE_SIZE);
+
+    uint32 worstfit_size = 0;
+    uint32 worstfit_start = 0;
+    uint32 ptr = kheapPageAllocStart;
+
+    while (ptr < kheapPageAllocBreak)
+    {
+        struct FrameInfo *info = get_frame_info(ptr_page_directory, ptr, NULL);
+
+        if (info != NULL)
+        {
+            ptr += info->allocation_size * PAGE_SIZE;
+        }
+        else
+        {
+            uint32 fara8_start = ptr;
+            uint32 fara8_size = 0;
+
+            while (ptr < kheapPageAllocBreak)
+            {
+                info = get_frame_info(ptr_page_directory, ptr, NULL);
+                if (info != NULL)
+                    break;
+                ptr += PAGE_SIZE;
+                fara8_size += PAGE_SIZE;
+            }
+
+
+            if (fara8_size == size)
+            {
+                for (uint32 i = 0; i < size / PAGE_SIZE; i++)
+                    alloc_page(ptr_page_directory, fara8_start + (i * PAGE_SIZE), PERM_WRITEABLE, 1);
+
+                struct FrameInfo *fi = get_frame_info(ptr_page_directory, fara8_start, NULL);
+                fi->allocation_size = size / PAGE_SIZE;
+                return (void*)fara8_start;
+            }
+
+            else if (fara8_size > worstfit_size)
+            {
+                worstfit_size  = fara8_size;
+                worstfit_start = fara8_start;
+            }
+        }
+    }
+
+
+    if (worstfit_size >= size)
+    {
+        for (uint32 i = 0; i < size / PAGE_SIZE; i++)
+            alloc_page(ptr_page_directory, worstfit_start + (i * PAGE_SIZE), PERM_WRITEABLE, 1);
+
+        struct FrameInfo *fi = get_frame_info(ptr_page_directory, worstfit_start, NULL);
+        fi->allocation_size = size / PAGE_SIZE;
+        return (void*)worstfit_start;
+    }
+
+    return NULL; 
+
+
+	// TODO: [PROJECT'25.BONUS#3] FAST PAGE ALLOCATOR
 }
+
+
 
 //=================================
 // [2] FREE SPACE FROM KERNEL HEAP:
 //=================================
-void kfree(void* virtual_address)
+void kfree(void *virtual_address)
 {
 
-//	 If virtual address inside the [BLOCK ALLOCATOR] range
-	//Use dynamic allocator to free the given address
-//	If virtual address inside the [PAGE ALLOCATOR] range
-	//FREE the space of the given address from RAM
-//	Else (i.e. invalid address): should panic(…)
+	//	 If virtual address inside the [BLOCK ALLOCATOR] range
+	// Use dynamic allocator to free the given address
+	//	If virtual address inside the [PAGE ALLOCATOR] range
+	// FREE the space of the given address from RAM
+	//	Else (i.e. invalid address): should panic(ï¿½)
 
 	uint32 va = (uint32)virtual_address;
 	uint32 *ptr_table = NULL;
-	if (va >= dynAllocStart && va < dynAllocEnd )
+	if (va >= dynAllocStart && va < dynAllocEnd)
 		free_block(virtual_address);
 
-	else if(va >= kheapPageAllocStart && va < kheapPageAllocBreak )
+	else if (va >= kheapPageAllocStart && va < kheapPageAllocBreak)
 	{
-		struct FrameInfo *fi= get_frame_info(ptr_page_directory, va, &ptr_table);
-		if(fi !=NULL)
+		struct FrameInfo *fi = get_frame_info(ptr_page_directory, va, &ptr_table);
+		if (fi != NULL)
 		{
-			uint32 size= fi->allocation_size;
-			for(int i=0;i<size;i++)
+			uint32 size = fi->allocation_size;
+			for (int i = 0; i < size; i++)
 			{
-				uint32 current_vadd= va +(i*PAGE_SIZE);
-				unmap_frame(ptr_page_directory,current_vadd);
+				uint32 current_vadd = va + (i * PAGE_SIZE);
+				unmap_frame(ptr_page_directory, current_vadd);
 			}
 
-			uint32 end_of_freed_frames= va +(size*PAGE_SIZE);
-			if (end_of_freed_frames==kheapPageAllocBreak)
+			uint32 end_of_freed_frames = va + (size * PAGE_SIZE);
+			if (end_of_freed_frames == kheapPageAllocBreak)
 			{
-				while(kheapPageAllocBreak> kheapPageAllocStart)
+				while (kheapPageAllocBreak > kheapPageAllocStart)
 				{
-					uint32 current_page= kheapPageAllocBreak-PAGE_SIZE;
-					struct FrameInfo *currentfi= get_frame_info(ptr_page_directory, current_page, &ptr_table);
-					if (currentfi ==NULL)
+					uint32 current_page = kheapPageAllocBreak - PAGE_SIZE;
+					struct FrameInfo *currentfi = get_frame_info(ptr_page_directory, current_page, &ptr_table);
+					if (currentfi == NULL)
 					{
-					kheapPageAllocBreak-=PAGE_SIZE;
+						kheapPageAllocBreak -= PAGE_SIZE;
 					}
-					else break;
+					else
+						break;
 				}
 			}
 		}
-		else panic("Null Frame Info!");
+		else
+			panic("Null Frame Info!");
 	}
 
-	else panic("Virtual Address Not Found!");
-
+	else
+		panic("Virtual Address Not Found!");
 }
 
 //=================================
@@ -123,9 +196,10 @@ void kfree(void* virtual_address)
 unsigned int kheap_virtual_address(unsigned int physical_address)
 {
 	struct FrameInfo *fi = to_frame_info(physical_address);
-	if (fi==NULL) return 0;
-	uint32 offset =  physical_address % PAGE_SIZE;
-	return fi->va+offset;
+	if (fi == NULL)
+		return 0;
+	uint32 offset = physical_address % PAGE_SIZE;
+	return fi->va + offset;
 }
 
 //=================================
@@ -133,9 +207,9 @@ unsigned int kheap_virtual_address(unsigned int physical_address)
 //=================================
 unsigned int kheap_physical_address(unsigned int virtual_address)
 {
-	//TODO: [PROJECT'25.GM#2] KERNEL HEAP - #4 kheap_physical_address
-	//Your code is here
-	//Comment the following line
+	// TODO: [PROJECT'25.GM#2] KERNEL HEAP - #4 kheap_physical_address
+	// Your code is here
+	// Comment the following line
 	panic("kheap_physical_address() is not implemented yet...!!");
 
 	/*EFFICIENT IMPLEMENTATION ~O(1) IS REQUIRED */
@@ -158,8 +232,8 @@ extern __inline__ uint32 get_block_size(void *va);
 
 void *krealloc(void *virtual_address, uint32 new_size)
 {
-	//TODO: [PROJECT'25.BONUS#2] KERNEL REALLOC - krealloc
-	//Your code is here
-	//Comment the following line
+	// TODO: [PROJECT'25.BONUS#2] KERNEL REALLOC - krealloc
+	// Your code is here
+	// Comment the following line
 	panic("krealloc() is not implemented yet...!!");
 }

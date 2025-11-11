@@ -95,7 +95,6 @@
  *     at UTEMP.
  */
 
-
 // All physical memory mapped at this address
 #define	KERNEL_BASE			0xF0000000
 
@@ -170,7 +169,6 @@
 
 #define USTACKBOTTOM (ROUNDUP(USER_PAGES_WS_MAX, PAGE_SIZE))
 
-
 //2022
 #define USER_DYN_BLKS_ARRAY 0 //(ROUNDDOWN(USER_HEAP_START - (sizeof(struct MemBlock) * NUM_OF_UHEAP_PAGES), PAGE_SIZE) - PAGE_SIZE)
 
@@ -203,7 +201,8 @@ extern volatile uint32 vpd[];     // VA of current page directory
  * with page2pa() in kern/pmap.h.
  */
 LIST_HEAD(FrameInfo_List, FrameInfo);
-typedef LIST_ENTRY(FrameInfo) Page_LIST_entry_t;
+typedef LIST_ENTRY(FrameInfo)
+Page_LIST_entry_t;
 
 struct FrameInfo {
 	/* free list link */
@@ -216,6 +215,8 @@ struct FrameInfo {
 	uint16 references;
 	struct Env *proc;
 	unsigned char isBuffered;
+	uint32 allocation_size;
+	uint32 va;
 };
 
 #endif /* !__ASSEMBLER__ */

@@ -122,12 +122,10 @@ void kfree(void* virtual_address)
 //=================================
 unsigned int kheap_virtual_address(unsigned int physical_address)
 {
-	//TODO: [PROJECT'25.GM#2] KERNEL HEAP - #3 kheap_virtual_address
-	//Your code is here
-	//Comment the following line
-	panic("kheap_virtual_address() is not implemented yet...!!");
-
-	/*EFFICIENT IMPLEMENTATION ~O(1) IS REQUIRED */
+	struct FrameInfo *fi = to_frame_info(physical_address);
+	if (fi==NULL) return 0;
+	uint32 offset =  physical_address % PAGE_SIZE;
+	return fi->va+offset;
 }
 
 //=================================

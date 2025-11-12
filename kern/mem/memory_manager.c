@@ -546,6 +546,8 @@ int loadtime_map_frame(uint32 *ptr_page_directory, struct FrameInfo *ptr_frame_i
 	ptr_frame_info->references++;
 	ptr_page_table[PTX(virtual_address)] = CONSTRUCT_ENTRY(physical_address , perm | PERM_PRESENT);
 
+	ptr_frame_info->va= virtual_address;
+
 	return 0;
 }
 

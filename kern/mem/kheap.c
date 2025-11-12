@@ -102,13 +102,26 @@ void *kmalloc(unsigned int size)
 
 			if (fara8_size == size)
 			{
-				for (uint32 i = 0; i < size / PAGE_SIZE; i++)
-					alloc_page(ptr_page_directory, fara8_start + (i * PAGE_SIZE), PERM_WRITEABLE, 1);
+				uint32 num_of_pages=size / PAGE_SIZE;
+				for (uint32 i = 0; i < num_of_pages; i++)
+				{
+					if(alloc_page(ptr_page_directory, fara8_start + (i * PAGE_SIZE), PERM_WRITEABLE, 1)!=0)
+						panic ("kmalloc: Alloc_page failed in exact-fit loop!");
 
-				struct FrameInfo *fi = get_frame_info(ptr_page_directory, fara8_start, NULL);
-				fi->allocation_size = size / PAGE_SIZE;
+				struct FrameInfo *fi = get_frame_info(ptr_page_directory, fara8_start+(i*PAGE_SIZE), NULL);
+				if (fi==NULL)
+								panic ("kmalloc: NULL FRAME in exact-fit");
+				if(i==0)
+				{
+					fi->allocation_size = num_of_pages;
+					fi->is_start_of_alloc=1;
+				}
+				else
+					fi->is_start_of_alloc=0;
+				}
 				return (void *)fara8_start;
 			}
+
 
 			else if (fara8_size > worstfit_size)
 			{
@@ -120,11 +133,23 @@ void *kmalloc(unsigned int size)
 
 	if (worstfit_size >= size)
 	{
-		for (uint32 i = 0; i < size / PAGE_SIZE; i++)
-			alloc_page(ptr_page_directory, worstfit_start + (i * PAGE_SIZE), PERM_WRITEABLE, 1);
+		uint32 num_of_pages= size / PAGE_SIZE;
+		for (uint32 i = 0; i < num_of_pages; i++)
+		{
+			if(alloc_page(ptr_page_directory, worstfit_start + (i * PAGE_SIZE), PERM_WRITEABLE, 1) !=0)
+				panic ("kmalloc: Alloc_page failed in worst-fit loop!");
 
-		struct FrameInfo *fi = get_frame_info(ptr_page_directory, worstfit_start, NULL);
-		fi->allocation_size = size / PAGE_SIZE;
+			struct FrameInfo *fi = get_frame_info(ptr_page_directory, worstfit_start + (i * PAGE_SIZE), NULL);
+			if (fi==NULL)
+				panic ("kmalloc: NULL FRAME in worst-fit");
+			if (i==0)
+			{
+				fi->allocation_size = num_of_pages;
+				fi->is_start_of_alloc=1;
+			}
+			else
+				fi->is_start_of_alloc=0;
+		}
 		return (void *)worstfit_start;
 	}
 
@@ -132,12 +157,25 @@ extend_heap:
 	if (kheapPageAllocBreak + size <= KERNEL_HEAP_MAX)
 	{
 		uint32 va = kheapPageAllocBreak;
-		for (uint32 i = 0; i < size / PAGE_SIZE; i++)
-			alloc_page(ptr_page_directory, va + (i * PAGE_SIZE), PERM_WRITEABLE, 1);
+		uint32 num_of_pages= size / PAGE_SIZE;
 
-		struct FrameInfo *fi = get_frame_info(ptr_page_directory, va, NULL);
-		fi->allocation_size = size / PAGE_SIZE;
-
+		for (uint32 i = 0; i < num_of_pages; i++)
+		{
+			if(alloc_page(ptr_page_directory, va + (i * PAGE_SIZE), PERM_WRITEABLE, 1) !=0)
+				panic ("kmalloc: Alloc_page failed in extend heap loop!");
+			struct FrameInfo *fi = get_frame_info(ptr_page_directory, va+(i*PAGE_SIZE), NULL);
+			if (fi==NULL)
+				panic ("kmalloc: NULL FRAME in extend-heap");
+			if (i==0)
+			{
+				fi->allocation_size = num_of_pages;
+				fi->is_start_of_alloc=1;
+			}
+			else
+			{
+				fi->is_start_of_alloc=0;
+			}
+		}
 		kheapPageAllocBreak += size;
 		return (void *)va;
 	}

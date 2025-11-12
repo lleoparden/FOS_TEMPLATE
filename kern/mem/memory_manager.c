@@ -484,6 +484,8 @@ void unmap_frame(uint32 *ptr_page_directory, uint32 virtual_address)
 			cprintf("WARNING: Freeing BUFFERED frame at va %x!!!\n", virtual_address) ;
 		decrement_references(ptr_frame_info);
 		ptr_frame_info->va =0;
+		ptr_frame_info->allocation_size=0;
+		ptr_frame_info->is_start_of_alloc=0;
 
 		/*********************************************************************************/
 		/*NEW'23 el7:)

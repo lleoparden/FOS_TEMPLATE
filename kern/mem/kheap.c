@@ -147,57 +147,58 @@ extend_heap:
 	// TODO: [PROJECT'25.BONUS#3] FAST PAGE ALLOCATOR
 }
 
+
+
 //=================================
 // [2] FREE SPACE FROM KERNEL HEAP:
 //=================================
-void kfree(void *virtual_address)
+void kfree(void* virtual_address)
 {
+//	If virtual address inside the [BLOCK ALLOCATOR] range
+	//Use dynamic allocator to free the given address
+//	If virtual address inside the [PAGE ALLOCATOR] range
+	//FREE the space of the given address from RAM
+//	Else (i.e. invalid address): should panic(…)
 
-	//	 If virtual address inside the [BLOCK ALLOCATOR] range
-	// Use dynamic allocator to free the given address
-	//	If virtual address inside the [PAGE ALLOCATOR] range
-	// FREE the space of the given address from RAM
-	//	Else (i.e. invalid address): should panic(ï¿½)
-
-	uint32 va = (uint32)virtual_address;
-	uint32 *ptr_table = NULL;
-	if (va >= dynAllocStart && va < dynAllocEnd)
+	uint32 va = (uint32)virtual_address; //cast since the passed parameter is a ptr
+	uint32 *table_ptr = NULL;
+	if (va >= dynAllocStart && va < dynAllocEnd )
 		free_block(virtual_address);
 
-	else if (va >= kheapPageAllocStart && va < kheapPageAllocBreak)
+	else if(va >= kheapPageAllocStart && va < kheapPageAllocBreak )
 	{
-		struct FrameInfo *fi = get_frame_info(ptr_page_directory, va, &ptr_table);
-		if (fi != NULL)
+		struct FrameInfo *frameptr= get_frame_info(ptr_page_directory, va, &table_ptr);
+		if(frameptr !=NULL)
 		{
-			uint32 size = fi->allocation_size;
-			for (int i = 0; i < size; i++)
+			if (!frameptr->is_start_of_alloc)
+				panic ("Invalid Address; Not Start Of A Block!");
+			uint32 size= frameptr->allocation_size;
+			for(int i=0;i<size;i++)
 			{
-				uint32 current_vadd = va + (i * PAGE_SIZE);
-				unmap_frame(ptr_page_directory, current_vadd);
+				uint32 current_va= va +(i*PAGE_SIZE);
+				unmap_frame(ptr_page_directory,current_va);
 			}
 
-			uint32 end_of_freed_frames = va + (size * PAGE_SIZE);
-			if (end_of_freed_frames == kheapPageAllocBreak)
+			uint32 end_of_freed_frames= va +(size*PAGE_SIZE);
+			if (end_of_freed_frames==kheapPageAllocBreak)
 			{
-				while (kheapPageAllocBreak > kheapPageAllocStart)
+				while(kheapPageAllocBreak> kheapPageAllocStart)
 				{
-					uint32 current_page = kheapPageAllocBreak - PAGE_SIZE;
-					struct FrameInfo *currentfi = get_frame_info(ptr_page_directory, current_page, &ptr_table);
-					if (currentfi == NULL)
+					uint32 last_page= kheapPageAllocBreak-PAGE_SIZE;
+					struct FrameInfo *lastframe= get_frame_info(ptr_page_directory, last_page, &table_ptr);
+					if (lastframe ==NULL)
 					{
-						kheapPageAllocBreak -= PAGE_SIZE;
+					kheapPageAllocBreak-=PAGE_SIZE;
 					}
-					else
-						break;
+					else break;
 				}
 			}
 		}
-		else
-			panic("Null Frame Info!");
+		else panic("Null Frame !");
 	}
 
-	else
-		panic("Virtual Address Not Found!");
+	else panic("Virtual Address Not Found!");
+
 }
 
 //=================================
@@ -205,11 +206,10 @@ void kfree(void *virtual_address)
 //=================================
 unsigned int kheap_virtual_address(unsigned int physical_address)
 {
-	struct FrameInfo *fi = to_frame_info(physical_address);
-	if (fi == NULL)
-		return 0;
-	uint32 offset = physical_address % PAGE_SIZE;
-	return fi->va + offset;
+	struct FrameInfo *frameptr = to_frame_info(physical_address);
+	if (frameptr ==NULL) return 0;
+	uint32 offset =  physical_address % PAGE_SIZE;
+	return ((frameptr->va)+offset);
 }
 
 //=================================
@@ -217,13 +217,27 @@ unsigned int kheap_virtual_address(unsigned int physical_address)
 //=================================
 unsigned int kheap_physical_address(unsigned int virtual_address)
 {
-	// TODO: [PROJECT'25.GM#2] KERNEL HEAP - #4 kheap_physical_address
-	// Your code is here
-	// Comment the following line
-	panic("kheap_physical_address() is not implemented yet...!!");
+	bool within_blockalloc_range =(virtual_address >= dynAllocStart && virtual_address < dynAllocEnd);
+	bool within_pagealloc_range =(virtual_address >= kheapPageAllocStart && virtual_address < kheapPageAllocBreak);
 
-	/*EFFICIENT IMPLEMENTATION ~O(1) IS REQUIRED */
+	if (!within_blockalloc_range && !within_pagealloc_range)
+		return 0; //address outside kernel heap
+
+	uint32 *table_ptr = NULL;
+	struct FrameInfo *frameptr= get_frame_info(ptr_page_directory,virtual_address, &table_ptr);
+	if (frameptr==NULL)
+		return 0;
+	else
+	{
+		uint32 page_table_index=PTX(virtual_address);
+		uint32 page_table_entry =table_ptr[page_table_index];
+		uint32 base_address = page_table_entry & (~0xFFF); //base address is the first 20 bits
+		uint32 offset = virtual_address%PAGE_SIZE;
+
+		return base_address+offset;
+	}
 }
+
 
 //=================================================================================//
 //============================== BONUS FUNCTION ===================================//

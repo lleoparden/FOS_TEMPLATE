@@ -217,6 +217,7 @@ struct FrameInfo {
 	unsigned char isBuffered;
 	uint32 allocation_size;
 	uint32 va;
+	bool is_start_of_alloc;
 };
 
 #endif /* !__ASSEMBLER__ */

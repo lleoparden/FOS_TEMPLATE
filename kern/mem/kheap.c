@@ -65,15 +65,21 @@ void *kmalloc(unsigned int size)
 	// Your code is here
 	// Comment the following line
 	//  kpanic_into_prompt("kmalloc() is not implemented yet...!!");
-	if (size == 0)
-		return NULL;
 
-	size = ROUNDUP(size, PAGE_SIZE);
+	if (size == 0)
+	{
+		return NULL;
+	}
 
 	acquire_kspinlock(&kheap_lock);
 
 	if (size <= DYN_ALLOC_MAX_BLOCK_SIZE)
+	{
+		release_kspinlock(&kheap_lock);
 		return alloc_block(size);
+	}
+
+	size = ROUNDUP(size, PAGE_SIZE);
 
 	uint32 worstfit_size = 0;
 	uint32 worstfit_start = 0;
@@ -107,14 +113,19 @@ void *kmalloc(unsigned int size)
 			if (fara8_size == size)
 			{
 				uint32 num_of_pages = size / PAGE_SIZE;
+				release_kspinlock(&kheap_lock);
 				for (uint32 i = 0; i < num_of_pages; i++)
 				{
 					if (alloc_page(ptr_page_directory, fara8_start + (i * PAGE_SIZE), PERM_WRITEABLE, 1) != 0)
+					{
 						panic("kmalloc: Alloc_page failed in exact-fit loop!");
+					}
 
 					struct FrameInfo *fi = get_frame_info(ptr_page_directory, fara8_start + (i * PAGE_SIZE), NULL);
 					if (fi == NULL)
+					{
 						panic("kmalloc: NULL FRAME in exact-fit");
+					}
 					if (i == 0)
 					{
 						fi->allocation_size = num_of_pages;
@@ -123,6 +134,7 @@ void *kmalloc(unsigned int size)
 					else
 						fi->is_start_of_alloc = 0;
 				}
+				// release_kspinlock(&kheap_lock);
 				return (void *)fara8_start;
 			}
 
@@ -137,14 +149,21 @@ void *kmalloc(unsigned int size)
 	if (worstfit_size >= size)
 	{
 		uint32 num_of_pages = size / PAGE_SIZE;
+		release_kspinlock(&kheap_lock);
 		for (uint32 i = 0; i < num_of_pages; i++)
 		{
 			if (alloc_page(ptr_page_directory, worstfit_start + (i * PAGE_SIZE), PERM_WRITEABLE, 1) != 0)
+			{
+				// release_kspinlock(&kheap_lock);
 				panic("kmalloc: Alloc_page failed in worst-fit loop!");
+			}
 
 			struct FrameInfo *fi = get_frame_info(ptr_page_directory, worstfit_start + (i * PAGE_SIZE), NULL);
 			if (fi == NULL)
+			{
+				// release_kspinlock(&kheap_lock);
 				panic("kmalloc: NULL FRAME in worst-fit");
+			}
 			if (i == 0)
 			{
 				fi->allocation_size = num_of_pages;
@@ -153,38 +172,50 @@ void *kmalloc(unsigned int size)
 			else
 				fi->is_start_of_alloc = 0;
 		}
+		// release_kspinlock(&kheap_lock);
 		return (void *)worstfit_start;
 	}
 
 extend_heap:
-	if (kheapPageAllocBreak + size <= KERNEL_HEAP_MAX)
-	{
-		uint32 va = kheapPageAllocBreak;
-		uint32 num_of_pages = size / PAGE_SIZE;
+{
+	uint32 va;
+	uint32 num_of_pages = size / PAGE_SIZE;
 
-		for (uint32 i = 0; i < num_of_pages; i++)
+	acquire_kspinlock(&kheap_lock);
+
+	if (kheapPageAllocBreak + size > KERNEL_HEAP_MAX)
+	{
+		release_kspinlock(&kheap_lock);
+		return NULL;
+	}
+	va = kheapPageAllocBreak;
+	kheapPageAllocBreak += size;
+	release_kspinlock(&kheap_lock);
+
+	for (uint32 i = 0; i < num_of_pages; i++)
+	{
+		if (alloc_page(ptr_page_directory, va + i * PAGE_SIZE, PERM_WRITEABLE, 1) != 0)
 		{
-			if (alloc_page(ptr_page_directory, va + (i * PAGE_SIZE), PERM_WRITEABLE, 1) != 0)
-				panic("kmalloc: Alloc_page failed in extend heap loop!");
-			struct FrameInfo *fi = get_frame_info(ptr_page_directory, va + (i * PAGE_SIZE), NULL);
-			if (fi == NULL)
-				panic("kmalloc: NULL FRAME in extend-heap");
-			if (i == 0)
-			{
-				fi->allocation_size = num_of_pages;
-				fi->is_start_of_alloc = 1;
-			}
-			else
-			{
-				fi->is_start_of_alloc = 0;
-			}
+			panic("kmalloc: Alloc_page failed in extend heap loop!");
 		}
-		kheapPageAllocBreak += size;
-		return (void *)va;
+
+		struct FrameInfo *fi = get_frame_info(ptr_page_directory, va + i * PAGE_SIZE, NULL);
+		if (fi == NULL)
+			panic("kmalloc: NULL FRAME in extend-heap");
+
+		if (i == 0)
+		{
+			fi->allocation_size = num_of_pages;
+			fi->is_start_of_alloc = 1;
+		}
+		else
+		{
+			fi->is_start_of_alloc = 0;
+		}
 	}
 
-	release_kspinlock(&kheap_lock);
-	return NULL;
+	return (void *)va;
+}
 
 	// TODO: [PROJECT'25.BONUS#3] FAST PAGE ALLOCATOR
 }
@@ -205,15 +236,22 @@ void kfree(void *virtual_address)
 	uint32 va = (uint32)virtual_address; // cast since the passed parameter is a ptr
 	uint32 *table_ptr = NULL;
 	if (va >= dynAllocStart && va < dynAllocEnd)
+	{
+		release_kspinlock(&kheap_lock);
 		free_block(virtual_address);
-
+		return;
+	}
 	else if (va >= kheapPageAllocStart && va < kheapPageAllocBreak)
 	{
 		struct FrameInfo *frameptr = get_frame_info(ptr_page_directory, va, &table_ptr);
 		if (frameptr != NULL)
 		{
 			if (!frameptr->is_start_of_alloc)
+			{
+				release_kspinlock(&kheap_lock);
 				panic("Invalid Address; Not Start Of A Block!");
+			}
+			release_kspinlock(&kheap_lock);
 			uint32 size = frameptr->allocation_size;
 			for (int i = 0; i < size; i++)
 			{
@@ -238,7 +276,10 @@ void kfree(void *virtual_address)
 			}
 		}
 		else
+		{
+			release_kspinlock(&kheap_lock);
 			panic("Null Frame !");
+		}
 		release_kspinlock(&kheap_lock);
 		return;
 	}

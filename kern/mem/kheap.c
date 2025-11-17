@@ -86,15 +86,48 @@ void *kmalloc(unsigned int size)
 	uint32 ptr = kheapPageAllocStart;
 
 	if (kheapPageAllocBreak == kheapPageAllocStart)
+	{
+		release_kspinlock(&kheap_lock);
 		goto extend_heap;
+	}
 
 	while (ptr < kheapPageAllocBreak)
 	{
-		struct FrameInfo *info = get_frame_info(ptr_page_directory, ptr, NULL);
+		uint32 pde_val = ptr_page_directory[PDX(ptr)];
+		uint32 *ptr_page_table = NULL;
+		int gt_ret = TABLE_NOT_EXIST;
+		struct FrameInfo *info = NULL;
+
+		/*
+		 * IMPORTANT SAFETY CHECK
+		 * - If PDE has PERM_PRESENT -> it's safe to call get_page_table()
+		 *   because get_page_table() will not call fault_handler() if the table is in memory.
+		 * - If PDE == 0 or PDE has no PERM_PRESENT bit, DO NOT call get_page_table()
+		 *   (calling it may cause lcr2/fault_handler and panic in kernel context).
+		 */
+		if (pde_val & PERM_PRESENT)
+		{
+			gt_ret = get_page_table(ptr_page_directory, ptr, &ptr_page_table);
+			if (gt_ret == TABLE_IN_MEMORY && ptr_page_table != NULL)
+			{
+				info = get_frame_info(ptr_page_directory, ptr, &ptr_page_table);
+			}
+			else
+			{
+				info = NULL;
+			}
+		}
+		else
+		{
+			info = NULL;
+		}
 
 		if (info != NULL)
 		{
-			ptr += info->allocation_size * PAGE_SIZE;
+			if (info->is_start_of_alloc)
+				ptr += info->allocation_size * PAGE_SIZE;
+			else
+				ptr += PAGE_SIZE;
 		}
 		else
 		{
@@ -103,9 +136,19 @@ void *kmalloc(unsigned int size)
 
 			while (ptr < kheapPageAllocBreak)
 			{
-				info = get_frame_info(ptr_page_directory, ptr, NULL);
-				if (info != NULL)
-					break;
+				pde_val = ptr_page_directory[PDX(ptr)];
+
+				if (pde_val & PERM_PRESENT)
+				{
+					gt_ret = get_page_table(ptr_page_directory, ptr, &ptr_page_table);
+					if (gt_ret == TABLE_IN_MEMORY && ptr_page_table != NULL)
+					{
+						struct FrameInfo *inner_info = get_frame_info(ptr_page_directory, ptr, &ptr_page_table);
+						if (inner_info != NULL)
+							break;
+					}
+				}
+
 				ptr += PAGE_SIZE;
 				fara8_size += PAGE_SIZE;
 			}
@@ -114,30 +157,21 @@ void *kmalloc(unsigned int size)
 			{
 				uint32 num_of_pages = size / PAGE_SIZE;
 				release_kspinlock(&kheap_lock);
+
 				for (uint32 i = 0; i < num_of_pages; i++)
 				{
-					if (alloc_page(ptr_page_directory, fara8_start + (i * PAGE_SIZE), PERM_WRITEABLE, 1) != 0)
-					{
+					if (alloc_page(ptr_page_directory, fara8_start + i * PAGE_SIZE, PERM_WRITEABLE, 1) != 0)
 						panic("kmalloc: Alloc_page failed in exact-fit loop!");
-					}
 
-					struct FrameInfo *fi = get_frame_info(ptr_page_directory, fara8_start + (i * PAGE_SIZE), NULL);
+					struct FrameInfo *fi = get_frame_info(ptr_page_directory, fara8_start + i * PAGE_SIZE, NULL);
 					if (fi == NULL)
-					{
 						panic("kmalloc: NULL FRAME in exact-fit");
-					}
-					if (i == 0)
-					{
-						fi->allocation_size = num_of_pages;
-						fi->is_start_of_alloc = 1;
-					}
-					else
-						fi->is_start_of_alloc = 0;
+
+					fi->allocation_size = (i == 0) ? num_of_pages : 0;
+					fi->is_start_of_alloc = (i == 0) ? 1 : 0;
 				}
-				// release_kspinlock(&kheap_lock);
 				return (void *)fara8_start;
 			}
-
 			else if (fara8_size > worstfit_size)
 			{
 				worstfit_size = fara8_size;
@@ -153,66 +187,98 @@ void *kmalloc(unsigned int size)
 		for (uint32 i = 0; i < num_of_pages; i++)
 		{
 			if (alloc_page(ptr_page_directory, worstfit_start + (i * PAGE_SIZE), PERM_WRITEABLE, 1) != 0)
-			{
-				// release_kspinlock(&kheap_lock);
 				panic("kmalloc: Alloc_page failed in worst-fit loop!");
-			}
-
 			struct FrameInfo *fi = get_frame_info(ptr_page_directory, worstfit_start + (i * PAGE_SIZE), NULL);
 			if (fi == NULL)
-			{
-				// release_kspinlock(&kheap_lock);
 				panic("kmalloc: NULL FRAME in worst-fit");
-			}
-			if (i == 0)
-			{
-				fi->allocation_size = num_of_pages;
-				fi->is_start_of_alloc = 1;
-			}
-			else
-				fi->is_start_of_alloc = 0;
+			fi->allocation_size = (i == 0) ? num_of_pages : 0;
+			fi->is_start_of_alloc = (i == 0) ? 1 : 0;
 		}
-		// release_kspinlock(&kheap_lock);
 		return (void *)worstfit_start;
 	}
 
+	release_kspinlock(&kheap_lock);
+
 extend_heap:
 {
+
 	uint32 va;
 	uint32 num_of_pages = size / PAGE_SIZE;
 
 	acquire_kspinlock(&kheap_lock);
+	if (kheapPageAllocBreak == 0)
+	{
+		release_kspinlock(&kheap_lock);
+		panic("HEAP CORRUPTION: kheapPageAllocBreak is 0!");
+	}
 
-	if (kheapPageAllocBreak + size > KERNEL_HEAP_MAX)
+	if (size > (KERNEL_HEAP_MAX - kheapPageAllocBreak))
 	{
 		release_kspinlock(&kheap_lock);
 		return NULL;
 	}
-	va = kheapPageAllocBreak;
-	kheapPageAllocBreak += size;
+
+	va = ROUNDUP(kheapPageAllocBreak, PAGE_SIZE);
+
+	uint32 old_break = kheapPageAllocBreak;
+	kheapPageAllocBreak = va + size;
 	release_kspinlock(&kheap_lock);
+
+	uint32 pages_allocated = 0;
+	for (uint32 i = 0; i < num_of_pages; i++)
+	{
+		uint32 cur_va = va + i * PAGE_SIZE;
+
+		int ret = alloc_page(ptr_page_directory, cur_va, PERM_WRITEABLE, 1);
+		if (ret != 0)
+		{
+
+			for (uint32 j = 0; j < pages_allocated; j++)
+			{
+				uint32 rollback_va = va + j * PAGE_SIZE;
+				unmap_frame(ptr_page_directory, rollback_va);
+			}
+
+			acquire_kspinlock(&kheap_lock);
+			kheapPageAllocBreak = old_break;
+			release_kspinlock(&kheap_lock);
+			return NULL;
+		}
+
+		pages_allocated++;
+	}
+
+	acquire_kspinlock(&kheap_lock);
 
 	for (uint32 i = 0; i < num_of_pages; i++)
 	{
-		if (alloc_page(ptr_page_directory, va + i * PAGE_SIZE, PERM_WRITEABLE, 1) != 0)
-		{
-			panic("kmalloc: Alloc_page failed in extend heap loop!");
-		}
+		uint32 cur_va = va + i * PAGE_SIZE;
 
-		struct FrameInfo *fi = get_frame_info(ptr_page_directory, va + i * PAGE_SIZE, NULL);
+		/* Use your existing helper kheap_physical_address -> to_frame_info pattern */
+		struct FrameInfo *fi = to_frame_info(kheap_physical_address(cur_va));
+
 		if (fi == NULL)
-			panic("kmalloc: NULL FRAME in extend-heap");
+		{
 
-		if (i == 0)
-		{
-			fi->allocation_size = num_of_pages;
-			fi->is_start_of_alloc = 1;
+			release_kspinlock(&kheap_lock);
+			for (uint32 j = 0; j < pages_allocated; j++)
+			{
+				uint32 rollback_va = va + j * PAGE_SIZE;
+				unmap_frame(ptr_page_directory, rollback_va);
+			}
+
+			acquire_kspinlock(&kheap_lock);
+			kheapPageAllocBreak = old_break;
+			release_kspinlock(&kheap_lock);
+
+			return NULL;
 		}
-		else
-		{
-			fi->is_start_of_alloc = 0;
-		}
+
+		fi->allocation_size = (i == 0) ? num_of_pages : 0;
+		fi->is_start_of_alloc = (i == 0) ? 1 : 0;
 	}
+
+	release_kspinlock(&kheap_lock);
 
 	return (void *)va;
 }

@@ -61,11 +61,11 @@ void return_page(void *va)
 //===================================
 void *kmalloc(unsigned int size)
 {
+	uint32 *ptr_page_table = NULL;
 	// TODO: [PROJECT'25.GM#2] KERNEL HEAP - #1 kmalloc
 	// Your code is here
 	// Comment the following line
 	//  kpanic_into_prompt("kmalloc() is not implemented yet...!!");
-
 	if (size == 0)
 	{
 		return NULL;
@@ -94,7 +94,6 @@ void *kmalloc(unsigned int size)
 	while (ptr < kheapPageAllocBreak)
 	{
 		uint32 pde_val = ptr_page_directory[PDX(ptr)];
-		uint32 *ptr_page_table = NULL;
 		int gt_ret = TABLE_NOT_EXIST;
 		struct FrameInfo *info = NULL;
 
@@ -163,7 +162,7 @@ void *kmalloc(unsigned int size)
 					if (alloc_page(ptr_page_directory, fara8_start + i * PAGE_SIZE, PERM_WRITEABLE, 1) != 0)
 						panic("kmalloc: Alloc_page failed in exact-fit loop!");
 
-					struct FrameInfo *fi = get_frame_info(ptr_page_directory, fara8_start + i * PAGE_SIZE, NULL);
+					struct FrameInfo *fi = get_frame_info(ptr_page_directory, fara8_start + i * PAGE_SIZE, &ptr_page_table);
 					if (fi == NULL)
 						panic("kmalloc: NULL FRAME in exact-fit");
 
@@ -188,7 +187,7 @@ void *kmalloc(unsigned int size)
 		{
 			if (alloc_page(ptr_page_directory, worstfit_start + (i * PAGE_SIZE), PERM_WRITEABLE, 1) != 0)
 				panic("kmalloc: Alloc_page failed in worst-fit loop!");
-			struct FrameInfo *fi = get_frame_info(ptr_page_directory, worstfit_start + (i * PAGE_SIZE), NULL);
+			struct FrameInfo *fi = get_frame_info(ptr_page_directory, worstfit_start + (i * PAGE_SIZE), &ptr_page_table);
 			if (fi == NULL)
 				panic("kmalloc: NULL FRAME in worst-fit");
 			fi->allocation_size = (i == 0) ? num_of_pages : 0;
@@ -317,7 +316,7 @@ void kfree(void *virtual_address)
 				release_kspinlock(&kheap_lock);
 				panic("Invalid Address; Not Start Of A Block!");
 			}
-			release_kspinlock(&kheap_lock);
+
 			uint32 size = frameptr->allocation_size;
 			for (int i = 0; i < size; i++)
 			{
@@ -340,14 +339,14 @@ void kfree(void *virtual_address)
 						break;
 				}
 			}
+			release_kspinlock(&kheap_lock);
+			return ;
 		}
 		else
 		{
 			release_kspinlock(&kheap_lock);
 			panic("Null Frame !");
 		}
-		release_kspinlock(&kheap_lock);
-		return;
 	}
 
 	else
@@ -365,6 +364,8 @@ unsigned int kheap_virtual_address(unsigned int physical_address)
 	struct FrameInfo *frameptr = to_frame_info(physical_address);
 	if (frameptr == NULL)
 		return 0;
+	if (frameptr->va ==0)
+		return 0; //to avoid returning an address with non-zero offset
 	uint32 offset = physical_address % PAGE_SIZE;
 	return ((frameptr->va) + offset);
 }

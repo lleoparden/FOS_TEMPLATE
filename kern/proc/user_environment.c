@@ -911,12 +911,48 @@ void* create_user_kern_stack(uint32* ptr_user_page_directory)
 	//TODO: [PROJECT'25.GM#3] FAULT HANDLER I - #1 create_user_kern_stack
 	//Your code is here
 	//Comment the following line
-	panic("create_user_kern_stack() is not implemented yet...!!");
+
+	//panic("create_user_kern_stack() is not implemented yet...!!");
 
 	//allocate space for the user kernel stack.
 	//remember to leave its bottom page as a GUARD PAGE (i.e. not mapped)
 	//return a pointer to the start of the allocated space (including the GUARD PAGE)
+
+
+
+	if(!ptr_user_page_directory){
+	panic("The User Page Directory pointer is NULL");
+
 }
+
+
+	//point 1 done
+	void* kern_stack_base = kmalloc(KERNEL_STACK_SIZE);
+
+	if(kern_stack_base == NULL){
+		panic("Failed to allocate kernel stack");
+	}
+
+
+	uint32 guard_page_vadds = (uint32)kern_stack_base;
+
+	//point 2 done
+	unmap_frame(ptr_user_page_directory,guard_page_vadds);
+
+	//to return the top of the stack
+	uint32 stack_base= (uint32) kern_stack_base;
+	void* stack_ptr = (void*) stack_base;
+
+	//point 3 done
+	//cprintf("Testing for an error");
+	return stack_ptr;
+
+
+
+
+}
+
+
 
 /*2024*/
 //===========================================================

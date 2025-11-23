@@ -340,7 +340,7 @@ void kfree(void *virtual_address)
 				}
 			}
 			release_kspinlock(&kheap_lock);
-			return ;
+			return;
 		}
 		else
 		{
@@ -364,8 +364,8 @@ unsigned int kheap_virtual_address(unsigned int physical_address)
 	struct FrameInfo *frameptr = to_frame_info(physical_address);
 	if (frameptr == NULL)
 		return 0;
-	if (frameptr->va ==0)
-		return 0; //to avoid returning an address with non-zero offset
+	if (frameptr->va == 0)
+		return 0; // to avoid returning an address with non-zero offset
 	uint32 offset = physical_address % PAGE_SIZE;
 	return ((frameptr->va) + offset);
 }
@@ -416,5 +416,68 @@ void *krealloc(void *virtual_address, uint32 new_size)
 	// TODO: [PROJECT'25.BONUS#2] KERNEL REALLOC - krealloc
 	// Your code is here
 	// Comment the following line
-	panic("krealloc() is not implemented yet...!!");
+	// panic("krealloc() is not implemented yet...!!");
+
+	if (virtual_address == NULL)
+	{
+		return kmalloc(new_size);
+	}
+
+	if (new_size == 0)
+	{
+		kfree(virtual_address);
+		return NULL;
+	}
+
+	uint32 va = (uint32)virtual_address;
+
+	acquire_kspinlock(&kheap_lock);
+
+	if (va >= dynAllocStart && va < dynAllocEnd)
+	{
+		release_kspinlock(&kheap_lock);
+		void *new_va = realloc_block(virtual_address, new_size);
+		return new_va;
+	}
+
+	if (va >= kheapPageAllocStart && va < kheapPageAllocBreak)
+	{
+		uint32 *table = NULL;
+		struct FrameInfo *fi = get_frame_info(ptr_page_directory, va, &table);
+
+		if (fi == NULL || fi->is_start_of_alloc == 0)
+		{
+			release_kspinlock(&kheap_lock);
+			panic("krealloc: invalid pointer (not start of page block)");
+		}
+
+		uint32 pages = fi->allocation_size;
+		uint32 size = pages * PAGE_SIZE;
+
+		uint32 old_pages = ROUNDUP(size, PAGE_SIZE) / PAGE_SIZE;
+		uint32 new_pages = ROUNDUP(new_size, PAGE_SIZE) / PAGE_SIZE;
+
+		if (old_pages == new_pages)
+		{
+			release_kspinlock(&kheap_lock);
+			return virtual_address;
+		}
+
+		release_kspinlock(&kheap_lock);
+		void *new_ptr = kmalloc(new_size);
+		acquire_kspinlock(&kheap_lock);
+		if (!new_ptr)
+		{
+			release_kspinlock(&kheap_lock);
+			return NULL;
+		}
+
+		memcpy(new_ptr, virtual_address, MIN(new_size, size));
+		release_kspinlock(&kheap_lock);
+		kfree(virtual_address);
+		return new_ptr;
+	}
+	release_kspinlock(&kheap_lock);
+	panic("krealloc: invalid pointer");
+	return NULL;
 }

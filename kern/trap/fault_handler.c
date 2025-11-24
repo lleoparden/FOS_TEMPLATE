@@ -166,6 +166,30 @@ void fault_handler(struct Trapframe *tf)
 			//(e.g. pointing to unmarked user heap page, kernel or wrong access rights),
 			//your code is here
 
+			uint32 permsPt = pt_get_page_permissions(faulted_env->env_page_directory, fault_va);
+
+				if (fault_va >= KERNEL_BASE) {
+					cprintf("In kernel\n");
+    				env_exit();
+				}
+
+				if (fault_va >= USER_HEAP_START && fault_va <= USER_HEAP_MAX) {
+    				if ((permsPt & PERM_UHPAGE) == 0){
+        				cprintf("Unmarked user heap\n");
+        				env_exit();
+    				}
+				}
+
+				if ((permsPt & PERM_PRESENT)) {
+    				cprintf("Page not present\n");
+    				env_exit();
+				}
+
+				if (!((permsPt & PERM_WRITEABLE) || (permsPt & PERM_USER))) {
+    				cprintf("Not writable\n");
+   					 env_exit();
+				}
+
 			/*============================================================================================*/
 		}
 
@@ -257,8 +281,27 @@ void page_fault_handler(struct Env * faulted_env, uint32 fault_va)
 	{
 		//TODO: [PROJECT'25.GM#3] FAULT HANDLER I - #3 placement
 		//Your code is here
+
+		struct FrameInfo *frame;
+		allocate_frame(&frame);
+
+		struct WorkingSetElement *Element = env_page_ws_list_create_element(faulted_env, fault_va);
+
+		map_frame(faulted_env->env_page_directory, frame, fault_va, PERM_PRESENT || PERM_WRITEABLE);
+
+		int faultPage = pf_read_env_page(faulted_env, (void*) fault_va);
+
+		if (faultPage == E_PAGE_NOT_EXIST_IN_PF){
+			if (!(fault_va < USTACKTOP) && !(fault_va > USER_HEAP_START && fault_va < USER_HEAP_MAX)){
+				unmap_frame(faulted_env->env_page_directory, fault_va);
+				env_exit();
+			}
+		}
+
+		LIST_INSERT_TAIL(&(faulted_env->page_WS_list), Element);
+
 		//Comment the following line
-		panic("page_fault_handler().PLACEMENT is not implemented yet...!!");
+		//panic("page_fault_handler().PLACEMENT is not implemented yet...!!");
 	}
 	else
 	{

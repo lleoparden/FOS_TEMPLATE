@@ -1,5 +1,6 @@
 #include <inc/lib.h>
-
+#define max_uheap_pages ((USER_HEAP_MAX - USER_HEAP_START)/PAGE_SIZE)
+uint32 UHeapArr[max_uheap_pages];
 //==================================================================================//
 //============================== GIVEN FUNCTIONS ===================================//
 //==================================================================================//
@@ -59,7 +60,74 @@ void* malloc(uint32 size)
 	//TODO: [PROJECT'25.IM#2] USER HEAP - #1 malloc
 	//Your code is here
 	//Comment the following line
-	panic("malloc() is not implemented yet...!!");
+	//panic("malloc() is not implemented yet...!!");
+
+	int allocindx=-1;
+	uint32 actualsize=size;
+	size = ROUNDUP(size,PAGE_SIZE);
+	uint32 needed_pages = size/PAGE_SIZE;
+
+	if (actualsize <= DYN_ALLOC_MAX_BLOCK_SIZE ) //Block Allocator
+		return alloc_block(actualsize);
+
+	else                                   //Page Allocator : Custom Fit
+	{
+		uint32 maxfreepage =0;
+		uint32 lim= ((uheapPageAllocBreak-USER_HEAP_START)/PAGE_SIZE);
+		uint32 i=((uheapPageAllocStart-USER_HEAP_START)/PAGE_SIZE);
+
+		while(i<lim)
+		{
+
+			if (UHeapArr[i]!=0) //page allocated so skip whole page
+				i+=UHeapArr[i];
+
+			else //page not allocated (free page)
+			{
+				uint32 freesize= 0;
+				uint32 freestart=i;
+
+				while (i<lim && UHeapArr[i]==0) //see how many pages are free
+				{
+					freesize++;
+					i++;
+				}
+
+				if (freesize == needed_pages)
+				{
+					allocindx=freestart;
+					break;
+				}
+
+				if (freesize > needed_pages)
+				{
+					if (freesize > maxfreepage)
+					{
+						maxfreepage = freesize;
+						allocindx=freestart;
+					}
+				}
+
+			}
+
+		}
+
+		if (allocindx ==-1) //extend break
+		{
+			if (uheapPageAllocBreak + size > USER_HEAP_MAX) return NULL; //no space in unused
+			else
+			{
+				allocindx= ((uheapPageAllocBreak - USER_HEAP_START)/PAGE_SIZE);
+				uheapPageAllocBreak += size;
+			}
+		}
+	}
+
+	uint32 alloc_addr= USER_HEAP_START + (allocindx*PAGE_SIZE);
+	UHeapArr[allocindx]=needed_pages;
+	sys_allocate_user_mem(alloc_addr,size);
+	return (void*)alloc_addr;
+
 }
 
 //=================================

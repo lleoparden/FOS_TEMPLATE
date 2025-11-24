@@ -152,11 +152,26 @@ void allocate_user_mem(struct Env* e, uint32 virtual_address, uint32 size)
 //		inctst();
 //		return;
 	/*====================================*/
-
 	//TODO: [PROJECT'25.IM#2] USER HEAP - #2 allocate_user_mem
 	//Your code is here
 	//Comment the following line
-	panic("allocate_user_mem() is not implemented yet...!!");
+	//panic("allocate_user_mem() is not implemented yet...!!");
+		uint32 va = virtual_address;
+		for (uint32 i=va; i< va+size ;i+=PAGE_SIZE)
+		{
+			uint32 *pagetableptr = NULL;
+			int pagetable =get_page_table(e->env_page_directory,i,&pagetableptr);
+
+			if(pagetable==TABLE_NOT_EXIST)
+			{
+				pagetableptr=create_page_table(e->env_page_directory,i);
+			}
+
+			if(pagetableptr!=NULL)
+			{
+				pagetableptr[PTX(i)] |= PERM_USER|PERM_WRITEABLE|PERM_UHPAGE;  //edit all in bitwise operation not to mess
+			}
+		}
 }
 
 //=====================================

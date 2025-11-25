@@ -133,10 +133,6 @@ struct Share *alloc_share(int32 ownerID, char *shareName, uint32 size, uint8 isW
 	memset(sharedobj->framesStorage, 0,
 		   numPages * sizeof(struct FrameInfo *));
 
-	acquire_kspinlock(&(AllShares.shareslock));
-	shares[sharedobj->ID] = sharedobj;
-	release_kspinlock(&(AllShares.shareslock));
-
 	return sharedobj;
 }
 
@@ -174,22 +170,24 @@ int create_shared_object(int32 ownerID, char *shareName, uint32 size, uint8 isWr
 
 	for (uint32 i = 0; i < numPages; i++)
 	{
-		struct FrameInfo *frame = allocate_frame();
-		if (!frame)
+		struct FrameInfo *frame;
+		if (allocate_frame(&frame) != 0)
 		{
 			for (uint32 j = 0; j < i; j++)
 				free_frame(sharedobj->framesStorage[j]);
+
 			kfree(sharedobj->framesStorage);
 			kfree(sharedobj);
 			return E_NO_SHARE;
 		}
+
 		sharedobj->framesStorage[i] = frame;
 	}
 
 	uint32 va = (uint32)virtual_address;
 	for (uint32 i = 0; i < numPages; i++, va += PAGE_SIZE)
 	{
-		if (map_frame(myenv->env_page_directory, sharedobj->framesStorage[i], (void *)va,
+		if (map_frame(myenv->env_page_directory, sharedobj->framesStorage[i], va,
 					  PERM_USER | (isWritable ? PERM_WRITEABLE : 0)) < 0)
 		{
 			for (uint32 j = 0; j < numPages; j++)
@@ -201,7 +199,7 @@ int create_shared_object(int32 ownerID, char *shareName, uint32 size, uint8 isWr
 	}
 
 	acquire_kspinlock(&(AllShares.shareslock));
-	LIST_INSERT_HEAD(&AllShares.shares_list, sharedobj, prev_next_info);
+	LIST_INSERT_HEAD(&AllShares.shares_list, sharedobj);
 	release_kspinlock(&(AllShares.shareslock));
 
 	return sharedobj->ID;
@@ -244,7 +242,7 @@ int get_shared_object(int32 ownerID, char *shareName, void *virtual_address)
 		map_frame(
 			myenv->env_page_directory,
 			sharedobj->framesStorage[i],
-			(void *)va,
+			va,
 			PERM_USER | (sharedobj->isWritable ? PERM_WRITEABLE : 0));
 	}
 

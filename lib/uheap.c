@@ -136,9 +136,51 @@ void *malloc(uint32 size)
 void free(void *virtual_address)
 {
 	// TODO: [PROJECT'25.IM#2] USER HEAP - #3 free
-	// Your code is here
-	// Comment the following line
-	panic("free() is not implemented yet...!!");
+	uint32 va = (uint32)virtual_address;
+	if (va >= dynAllocStart && va < dynAllocEnd)
+		{
+			free_block(virtual_address);
+			return;
+		}
+	else if (va >= uheapPageAllocStart && va < uheapPageAllocBreak)
+	{
+		uint32 indx = ((va-USER_HEAP_START)/PAGE_SIZE);
+		uint32 reqpages = UHeapArr[indx];
+
+		if (reqpages==0) panic("User asking to free an unallocated block!");
+		else
+		{
+			UHeapArr[indx]=0;
+		}
+
+		sys_free_user_mem(va,reqpages*PAGE_SIZE);
+
+		uint32 end_of_freed_pages = va + (reqpages * PAGE_SIZE);
+		if (end_of_freed_pages == uheapPageAllocBreak)
+		{
+			uint32 arrstart= ((uheapPageAllocStart - USER_HEAP_START)/PAGE_SIZE);
+			uint32 lim =((va - USER_HEAP_START)/PAGE_SIZE); //limit is the page we just freed
+			uint32 maxusedindx=arrstart;
+
+			for(uint32 i=arrstart;i<lim;)
+			{
+				if (UHeapArr[i] !=0) //found an allocated block
+				{
+					maxusedindx= i+UHeapArr[i];
+					i+=UHeapArr[i];
+				}
+
+				else //empty block
+				{
+					i++;
+				}
+			}
+
+			uheapPageAllocBreak = USER_HEAP_START +(maxusedindx *PAGE_SIZE);
+		}
+	}
+	else
+		panic("Invalid address outside user heap range!");
 }
 
 //=================================

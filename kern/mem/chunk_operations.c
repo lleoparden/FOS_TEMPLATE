@@ -169,7 +169,7 @@ void allocate_user_mem(struct Env* e, uint32 virtual_address, uint32 size)
 
 			if(pagetableptr!=NULL)
 			{
-				pagetableptr[PTX(i)] |= PERM_USER|PERM_WRITEABLE|PERM_UHPAGE;  //edit all in bitwise operation not to mess
+				pagetableptr[PTX(i)] |= PERM_USER|PERM_WRITEABLE|PERM_UHPAGE;  //set uhpage bit in addition to giving user permission to read/write in page
 			}
 		}
 }

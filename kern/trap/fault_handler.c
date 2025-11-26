@@ -271,70 +271,134 @@ int get_optimal_num_faults(struct WS_List *initWorkingSet, int maxWSSize, struct
 void page_fault_handler(struct Env * faulted_env, uint32 fault_va)
 {
 #if USE_KHEAP
-	struct WorkingSetElement *victimWSElement = NULL;
-	uint32 wsSize = LIST_SIZE(&(faulted_env->page_WS_list));
-#else
-	int iWS =faulted_env->page_last_WS_index;
-	uint32 wsSize = env_page_ws_get_size(faulted_env);
-#endif
-	if(wsSize < (faulted_env->page_WS_max_size))
+	if (isPageReplacmentAlgorithmOPTIMAL())
 	{
-		//TODO: [PROJECT'25.GM#3] FAULT HANDLER I - #3 placement
+		//TODO: [PROJECT'25.IM#1] FAULT HANDLER II - #1 Optimal Reference Stream
 		//Your code is here
-
-		struct FrameInfo *frame;
-		allocate_frame(&frame);
-
-		struct WorkingSetElement *Element = env_page_ws_list_create_element(faulted_env, fault_va);
-
-		map_frame(faulted_env->env_page_directory, frame, fault_va, PERM_PRESENT || PERM_WRITEABLE);
-
-		int faultPage = pf_read_env_page(faulted_env, (void*) fault_va);
-
-		if (faultPage == E_PAGE_NOT_EXIST_IN_PF){
-			if (!(fault_va < USTACKTOP) && !(fault_va > USER_HEAP_START && fault_va < USER_HEAP_MAX)){
-				unmap_frame(faulted_env->env_page_directory, fault_va);
-				env_exit();
-			}
-		}
-
-		LIST_INSERT_TAIL(&(faulted_env->page_WS_list), Element);
-
 		//Comment the following line
-		//panic("page_fault_handler().PLACEMENT is not implemented yet...!!");
+		panic("page_fault_handler().REPLACEMENT is not implemented yet...!!");
 	}
 	else
 	{
-		if (isPageReplacmentAlgorithmOPTIMAL())
+		struct WorkingSetElement *victimWSElement = NULL;
+		uint32 wsSize = LIST_SIZE(&(faulted_env->page_WS_list));
+		if(wsSize < (faulted_env->page_WS_max_size))
 		{
-			//TODO: [PROJECT'25.IM#1] FAULT HANDLER II - #1 Optimal Reference Stream
+			//TODO: [PROJECT'25.GM#3] FAULT HANDLER I - #3 placement
 			//Your code is here
+			struct FrameInfo *frame;
+			if (allocate_frame(&frame) != 0) {
+        		panic("LRU: allocate_frame failed");
+   			}
+
+			struct WorkingSetElement *Element = env_page_ws_list_create_element(faulted_env, fault_va);
+
+			map_frame(faulted_env->env_page_directory, frame, fault_va, PERM_PRESENT | PERM_WRITEABLE | PERM_USER);
+
+			int faultPage = pf_read_env_page(faulted_env, (void*) fault_va);
+
+			if (faultPage == E_PAGE_NOT_EXIST_IN_PF){
+				if (!(fault_va < USTACKTOP) && !(fault_va >= USER_HEAP_START && fault_va < USER_HEAP_MAX)){
+					unmap_frame(faulted_env->env_page_directory, fault_va);
+					env_exit();
+				}
+			}
+
+			LIST_INSERT_TAIL(&(faulted_env->page_WS_list), Element);
 			//Comment the following line
-			panic("page_fault_handler().REPLACEMENT is not implemented yet...!!");
+			// panic("page_fault_handler().PLACEMENT is not implemented yet...!!");
 		}
-		else if (isPageReplacmentAlgorithmOPTIMAL())
+		else
 		{
-			//TODO: [PROJECT'25.IM#1] FAULT HANDLER II - #3 Clock Replacement
-			//Your code is here
-			//Comment the following line
-			panic("page_fault_handler().REPLACEMENT is not implemented yet...!!");
-		}
-		else if (isPageReplacmentAlgorithmLRU(PG_REP_LRU_TIME_APPROX))
-		{
-			//TODO: [PROJECT'25.IM#6] FAULT HANDLER II - #2 LRU Aging Replacement
-			//Your code is here
-			//Comment the following line
-			panic("page_fault_handler().REPLACEMENT is not implemented yet...!!");
-		}
-		else if (isPageReplacmentAlgorithmModifiedCLOCK())
-		{
-			//TODO: [PROJECT'25.IM#6] FAULT HANDLER II - #3 Modified Clock Replacement
-			//Your code is here
-			//Comment the following line
-			panic("page_fault_handler().REPLACEMENT is not implemented yet...!!");
+			if (isPageReplacmentAlgorithmCLOCK())
+			{
+				//TODO: [PROJECT'25.IM#1] FAULT HANDLER II - #3 Clock Replacement
+				//Your code is here
+				//Comment the following line
+				panic("page_fault_handler().REPLACEMENT is not implemented yet...!!");
+			}
+			else if (isPageReplacmentAlgorithmLRU(PG_REP_LRU_TIME_APPROX))
+			{
+				//TODO: [PROJECT'25.IM#6] FAULT HANDLER II - #2 LRU Aging Replacement
+				//Your code is here
+				unsigned int oldest_stamp = 0xFFFFFFFF;
+				struct WorkingSetElement *wse;
+				LIST_FOREACH(wse, &(faulted_env->page_WS_list)) {
+					if (wse->time_stamp < oldest_stamp) {
+						oldest_stamp = wse->time_stamp;
+						victimWSElement = wse;
+					}
+				}
+
+				if (victimWSElement == NULL)
+				panic("LRU: no victim selected!");
+				
+				uint32 permsPt = pt_get_page_permissions(faulted_env->env_page_directory, victimWSElement->virtual_address);
+				uint32 *ptr_table;
+				struct FrameInfo *frame_info = get_frame_info(faulted_env->env_page_directory,victimWSElement->virtual_address,&ptr_table);
+				if(frame_info == NULL)
+				{
+					panic("page_fault_handler: frame_info is NULL for the victim page to be replaced!");
+				}
+				if(permsPt & PERM_MODIFIED) {
+					pf_update_env_page(faulted_env, (void*) victimWSElement->virtual_address, frame_info);
+				}
+				unmap_frame(faulted_env->env_page_directory, victimWSElement->virtual_address);
+				
+				
+				//Remove the victim from the WS list
+				LIST_REMOVE(&(faulted_env->page_WS_list),victimWSElement);
+				
+				if (faulted_env->page_last_WS_element == victimWSElement) {
+					faulted_env->page_last_WS_element =LIST_NEXT(victimWSElement);
+
+					if (faulted_env->page_last_WS_element == NULL){
+						faulted_env->page_last_WS_element =LIST_FIRST(&(faulted_env->page_WS_list));
+					}
+				}
+				kfree(victimWSElement);
+
+
+
+				//Now, we can place the new page
+				struct FrameInfo *frame;
+				if (allocate_frame(&frame) != 0) {
+        			panic("LRU: allocate_frame failed");
+   				}
+
+				struct WorkingSetElement *Element = env_page_ws_list_create_element(faulted_env, fault_va);
+
+				map_frame(faulted_env->env_page_directory, frame, fault_va, PERM_PRESENT | PERM_WRITEABLE | PERM_USER);
+
+				int faultPage = pf_read_env_page(faulted_env, (void*) fault_va);
+
+				if (faultPage == E_PAGE_NOT_EXIST_IN_PF){
+					if (!(fault_va < USTACKTOP) && !(fault_va >= USER_HEAP_START && fault_va < USER_HEAP_MAX)){
+						unmap_frame(faulted_env->env_page_directory, fault_va);
+						env_exit();
+					}
+				}
+
+				LIST_INSERT_TAIL(&(faulted_env->page_WS_list), Element);
+
+
+				
+				
+				//Comment the following line
+				// panic("page_fault_handler().REPLACEMENT is not implemented yet...!!");
+			}
+			else if (isPageReplacmentAlgorithmModifiedCLOCK())
+			{
+				//TODO: [PROJECT'25.IM#6] FAULT HANDLER II - #3 Modified Clock Replacement
+				//Your code is here
+				//Comment the following line
+				panic("page_fault_handler().REPLACEMENT is not implemented yet...!!");
+			}
 		}
 	}
+#endif
 }
+
 
 void __page_fault_handler_with_buffering(struct Env * curenv, uint32 fault_va)
 {

@@ -179,16 +179,23 @@ void allocate_user_mem(struct Env* e, uint32 virtual_address, uint32 size)
 //=====================================
 void free_user_mem(struct Env* e, uint32 virtual_address, uint32 size)
 {
-	/*====================================*/
-	/*Remove this line before start coding*/
-//		inctst();
-//		return;
-	/*====================================*/
-
 	//TODO: [PROJECT'25.IM#2] USER HEAP - #4 free_user_mem
-	//Your code is here
-	//Comment the following line
-	panic("free_user_mem() is not implemented yet...!!");
+
+	uint32 va = virtual_address;
+	for (uint32 i=va; i< va+size ;i+=PAGE_SIZE)
+	{
+		pf_remove_env_page(e, i);
+		env_page_ws_invalidate(e, i);
+
+		uint32 *pagetableptr = NULL;
+		int pagetable =get_page_table(e->env_page_directory,i,&pagetableptr);
+		if (pagetable==TABLE_IN_MEMORY && pagetableptr !=NULL)
+		{
+			pagetableptr[PTX(i)] &= ~(PERM_USER|PERM_WRITEABLE|PERM_UHPAGE);
+		}
+
+	}
+
 }
 
 //=====================================

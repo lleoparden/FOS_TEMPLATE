@@ -366,7 +366,18 @@ void update_WS_time_stamps()
 {
 	//TODO: [PROJECT'25.IM#6] FAULT HANDLER II - #1 update_WS_time_stamps
 	//Your code is here
+	struct WorkingSetElement *wse;
+	struct Env* cur_env = get_cpu_proc();
+	LIST_FOREACH(wse, &(cur_env->page_WS_list)) {
+		wse->time_stamp >>=1;
+		uint32 permsPt = pt_get_page_permissions(cur_env->env_page_directory, wse->virtual_address);
+		if(permsPt & PERM_USED) {
+			wse->time_stamp |= 0x80000000;
+			pt_set_page_permissions(cur_env->env_page_directory, wse->virtual_address, 0, PERM_USED);
+		}	
+	}
+
 	//Comment the following line
-	panic("update_WS_time_stamps is not implemented yet...!!");
+	// panic("update_WS_time_stamps is not implemented yet...!!");
 
 }

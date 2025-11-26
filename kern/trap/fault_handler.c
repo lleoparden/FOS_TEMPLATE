@@ -332,7 +332,7 @@ void page_fault_handler(struct Env * faulted_env, uint32 fault_va)
 
 				if (victimWSElement == NULL)
 				panic("LRU: no victim selected!");
-				
+
 				uint32 permsPt = pt_get_page_permissions(faulted_env->env_page_directory, victimWSElement->virtual_address);
 				uint32 *ptr_table;
 				struct FrameInfo *frame_info = get_frame_info(faulted_env->env_page_directory,victimWSElement->virtual_address,&ptr_table);
@@ -341,14 +341,14 @@ void page_fault_handler(struct Env * faulted_env, uint32 fault_va)
 					panic("page_fault_handler: frame_info is NULL for the victim page to be replaced!");
 				}
 				if(permsPt & PERM_MODIFIED) {
-					pf_update_env_page(faulted_env, (void*) victimWSElement->virtual_address, frame_info);
+					pf_update_env_page(faulted_env, victimWSElement->virtual_address, frame_info);
 				}
 				unmap_frame(faulted_env->env_page_directory, victimWSElement->virtual_address);
-				
-				
+
+
 				//Remove the victim from the WS list
 				LIST_REMOVE(&(faulted_env->page_WS_list),victimWSElement);
-				
+
 				if (faulted_env->page_last_WS_element == victimWSElement) {
 					faulted_env->page_last_WS_element =LIST_NEXT(victimWSElement);
 
@@ -382,8 +382,8 @@ void page_fault_handler(struct Env * faulted_env, uint32 fault_va)
 				LIST_INSERT_TAIL(&(faulted_env->page_WS_list), Element);
 
 
-				
-				
+
+
 				//Comment the following line
 				// panic("page_fault_handler().REPLACEMENT is not implemented yet...!!");
 			}

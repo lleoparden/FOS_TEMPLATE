@@ -770,8 +770,10 @@ static int program_segment_alloc_map_copy_workingset(struct Env *e, struct Progr
 	/*2025*/// DON'T Load segment that start with va = 200000 since it's for debugging stab and differ from QMUE to Bochs
 	if (iVA == 0x200000)
 		remaining_ws_pages = 0 ;
-	//In [tpp]: Load max of 9 pages only for the data segments that start with va = 803000
-	if (iVA == 0x803000 && strcmp(e->prog_name, "tpp")==0)
+	//In [tpp or tia's]: Load max of 9 pages only for the data segments that start with va = 803000
+	if (iVA == 0x803000 && (strcmp(e->prog_name, "tpp")==0 || strcmp(e->prog_name, "tia") ==0
+			|| strcmp(e->prog_name, "tia_slave1") == 0 || strcmp(e->prog_name, "tia_slave2") == 0
+			|| strcmp(e->prog_name, "tia_slave3") == 0 || strcmp(e->prog_name, "tia_slave4") == 0))
 		remaining_ws_pages = remaining_ws_pages < 9 ? remaining_ws_pages:9;
 	/*==========================================================================================*/
 	for (; iVA < end_vaddr && i<remaining_ws_pages; i++, iVA += PAGE_SIZE)
@@ -911,14 +913,11 @@ void* create_user_kern_stack(uint32* ptr_user_page_directory)
 	//TODO: [PROJECT'25.GM#3] FAULT HANDLER I - #1 create_user_kern_stack
 	//Your code is here
 	//Comment the following line
-
 	//panic("create_user_kern_stack() is not implemented yet...!!");
 
 	//allocate space for the user kernel stack.
 	//remember to leave its bottom page as a GUARD PAGE (i.e. not mapped)
 	//return a pointer to the start of the allocated space (including the GUARD PAGE)
-
-
 
 	if(!ptr_user_page_directory){
 	panic("The User Page Directory pointer is NULL");
@@ -946,13 +945,8 @@ void* create_user_kern_stack(uint32* ptr_user_page_directory)
 	//point 3 done
 	//cprintf("Testing for an error");
 	return stack_ptr;
-
-
-
-
+	
 }
-
-
 
 /*2024*/
 //===========================================================

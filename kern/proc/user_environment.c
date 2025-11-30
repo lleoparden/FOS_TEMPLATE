@@ -926,7 +926,7 @@ void* create_user_kern_stack(uint32* ptr_user_page_directory)
 
 
 	//point 1 done
-	void* kern_stack_base = kmalloc(KERNEL_STACK_SIZE);
+	void* kern_stack_base = kmalloc(KERNEL_STACK_SIZE + PAGE_SIZE);
 
 	if(kern_stack_base == NULL){
 		panic("Failed to allocate kernel stack");
@@ -936,15 +936,16 @@ void* create_user_kern_stack(uint32* ptr_user_page_directory)
 	uint32 guard_page_vadds = (uint32)kern_stack_base;
 
 	//point 2 done
-	unmap_frame(ptr_user_page_directory,guard_page_vadds);
 
-	//to return the top of the stack
-	uint32 stack_base= (uint32) kern_stack_base;
-	void* stack_ptr = (void*) stack_base;
+
+	pt_set_page_permissions(ptr_user_page_directory,guard_page_vadds,0,PERM_PRESENT);
+
+
+
 
 	//point 3 done
 	//cprintf("Testing for an error");
-	return stack_ptr;
+	return kern_stack_base;
 	
 }
 

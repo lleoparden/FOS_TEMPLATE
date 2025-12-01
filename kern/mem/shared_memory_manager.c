@@ -108,6 +108,9 @@ struct Share *alloc_share(int32 ownerID, char *shareName, uint32 size, uint8 isW
 	// Comment the following line
 	//  panic("alloc_share() is not implemented yet...!!");
 
+	uint32 numPages = ROUNDUP(size, PAGE_SIZE) / PAGE_SIZE;
+
+#if USE_KHEAP == 1
 	struct Share *sharedobj = (struct Share *)kmalloc(sizeof(struct Share));
 	if (sharedobj == NULL)
 		return NULL;
@@ -119,8 +122,6 @@ struct Share *alloc_share(int32 ownerID, char *shareName, uint32 size, uint8 isW
 	sharedobj->references = 1;
 
 	sharedobj->ID = ((uint32)sharedobj) & 0x7FFFFFFF;
-
-	uint32 numPages = ROUNDUP(size, PAGE_SIZE) / PAGE_SIZE;
 
 	sharedobj->framesStorage =
 		(struct FrameInfo **)kmalloc(numPages * sizeof(struct FrameInfo *));
@@ -134,6 +135,32 @@ struct Share *alloc_share(int32 ownerID, char *shareName, uint32 size, uint8 isW
 		   numPages * sizeof(struct FrameInfo *));
 
 	return sharedobj;
+
+#else
+	struct Share *sharedobj = NULL;
+	for (int i = 0; i < MAX_SHARES; i++)
+	{
+		if (shares[i].ID == 0)
+		{
+			sharedobj = &shares[i];
+			break;
+		}
+	}
+	if (sharedobj == NULL)
+		return NULL;
+
+	sharedobj->ownerID = ownerID;
+	strcpy(sharedobj->name, shareName);
+	sharedobj->size = size;
+	sharedobj->isWritable = isWritable;
+	sharedobj->references = 1;
+
+	sharedobj->ID = ((uint32)sharedobj) & 0x7FFFFFFF;
+
+	memset(sharedobj->framesStorage, 0, numPages * sizeof(struct FrameInfo *));
+
+	return sharedobj;
+#endif
 }
 
 //=========================
@@ -175,9 +202,12 @@ int create_shared_object(int32 ownerID, char *shareName, uint32 size, uint8 isWr
 		{
 			for (uint32 j = 0; j < i; j++)
 				free_frame(sharedobj->framesStorage[j]);
-
+#if USE_KHEAP == 1
 			kfree(sharedobj->framesStorage);
 			kfree(sharedobj);
+#else
+			sharedobj->ID = 0;
+#endif
 			return E_NO_SHARE;
 		}
 
@@ -192,15 +222,21 @@ int create_shared_object(int32 ownerID, char *shareName, uint32 size, uint8 isWr
 		{
 			for (uint32 j = 0; j < numPages; j++)
 				free_frame(sharedobj->framesStorage[j]);
+#if USE_KHEAP == 1
 			kfree(sharedobj->framesStorage);
 			kfree(sharedobj);
+#else
+			sharedobj->ID = 0;
+#endif
 			return E_NO_SHARE;
 		}
 	}
 
+#if USE_KHEAP == 1
 	acquire_kspinlock(&(AllShares.shareslock));
 	LIST_INSERT_HEAD(&AllShares.shares_list, sharedobj);
 	release_kspinlock(&(AllShares.shareslock));
+#endif
 
 	return sharedobj->ID;
 }
@@ -224,8 +260,10 @@ int get_shared_object(int32 ownerID, char *shareName, void *virtual_address)
 	//	a) ID of the shared object (its VA after masking out its msb) if success
 	//	b) E_SHARED_MEM_NOT_EXISTS if the shared object is not exists
 
+	struct Share *sharedobj = NULL;
+#if USE_KHEAP == 1
 	acquire_kspinlock(&AllShares.shareslock);
-	struct Share *sharedobj = find_share(ownerID, shareName);
+	sharedobj = find_share(ownerID, shareName);
 	if (sharedobj == NULL)
 	{
 		release_kspinlock(&AllShares.shareslock);
@@ -235,7 +273,24 @@ int get_shared_object(int32 ownerID, char *shareName, void *virtual_address)
 	sharedobj->references++;
 	release_kspinlock(&AllShares.shareslock);
 
+#else
+	for (int i = 0; i < MAX_SHARES; i++)
+	{
+		if (shares[i].ID != 0 &&
+			shares[i].ownerID == ownerID &&
+			strcmp(shares[i].name, shareName) == 0)
+		{
+			sharedobj = &shares[i];
+			sharedobj->references++;
+			break;
+		}
+	}
+	if (sharedobj == NULL)
+		return E_SHARED_MEM_NOT_EXISTS;
+#endif
+
 	uint32 numPages = ROUNDUP(sharedobj->size, PAGE_SIZE) / PAGE_SIZE;
+
 	uint32 va = (uint32)virtual_address;
 	for (uint32 i = 0; i < numPages; i++, va += PAGE_SIZE)
 	{

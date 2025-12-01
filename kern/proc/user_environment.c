@@ -921,8 +921,7 @@ void* create_user_kern_stack(uint32* ptr_user_page_directory)
 
 	if(!ptr_user_page_directory){
 	panic("The User Page Directory pointer is NULL");
-
-}
+	}
 
 
 	//point 1 done

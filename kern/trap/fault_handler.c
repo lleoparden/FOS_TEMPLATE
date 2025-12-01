@@ -309,7 +309,7 @@ void page_fault_handler(struct Env * faulted_env, uint32 fault_va)
 
 			if(faulted_env->page_last_WS_element == NULL ){
 			LIST_INSERT_TAIL(&(faulted_env->page_WS_list), Element);
-			if(wsSize == faulted_env->page_WS_max_size){
+			if(wsSize == faulted_env->page_WS_max_size-1){
 				faulted_env->page_last_WS_element = LIST_FIRST(&(faulted_env->page_WS_list));
 			}
 			}
@@ -372,32 +372,34 @@ void page_fault_handler(struct Env * faulted_env, uint32 fault_va)
 
 				//Now, we can place the new page
 				struct FrameInfo *frame;
-				if (allocate_frame(&frame) != 0) {
-        			panic("LRU: allocate_frame failed");
-   				}
+			if (allocate_frame(&frame) != 0) {
+        		panic("LRU: allocate_frame failed");
+   			}
 
-				fault_va = ROUNDDOWN(fault_va, PAGE_SIZE);
+			fault_va = ROUNDDOWN(fault_va, PAGE_SIZE);
 
-				struct WorkingSetElement *Element = env_page_ws_list_create_element(faulted_env, fault_va);
+			struct WorkingSetElement *Element = env_page_ws_list_create_element(faulted_env, fault_va);
 
-				map_frame(faulted_env->env_page_directory, frame, fault_va, PERM_PRESENT | PERM_WRITEABLE | PERM_USER);
+			map_frame(faulted_env->env_page_directory, frame, fault_va, PERM_PRESENT | PERM_WRITEABLE | PERM_USER);
 
 
-				int faultPage = pf_read_env_page(faulted_env, (void*) fault_va);
+			int faultPage = pf_read_env_page(faulted_env, (void*) fault_va);
 
-				if (faultPage == E_PAGE_NOT_EXIST_IN_PF){
-					if (!(fault_va >= USTACKBOTTOM && fault_va < USTACKTOP) && !(fault_va >= USER_HEAP_START && fault_va < USER_HEAP_MAX)){
-						unmap_frame(faulted_env->env_page_directory, fault_va);
-						env_exit();
-					}
+			if (faultPage == E_PAGE_NOT_EXIST_IN_PF){
+				if (!(fault_va >= USTACKBOTTOM && fault_va < USTACKTOP) && !(fault_va >= USER_HEAP_START && fault_va < USER_HEAP_MAX)){
+					unmap_frame(faulted_env->env_page_directory, fault_va);
+					env_exit();
 				}
+			}
 
-				if(faulted_env->page_last_WS_element == NULL || faulted_env){
-				LIST_INSERT_TAIL(&(faulted_env->page_WS_list), Element);
-				faulted_env->page_last_WS_element = Element;
-				}
-				else
-				LIST_INSERT_BEFORE(&(faulted_env->page_WS_list), (faulted_env -> page_last_WS_element), Element);
+			if(faulted_env->page_last_WS_element == NULL ){
+			LIST_INSERT_TAIL(&(faulted_env->page_WS_list), Element);
+			if(wsSize == faulted_env->page_WS_max_size-1){
+				faulted_env->page_last_WS_element = LIST_FIRST(&(faulted_env->page_WS_list));
+			}
+			}
+			else
+			LIST_INSERT_BEFORE(&(faulted_env->page_WS_list), (faulted_env -> page_last_WS_element), Element);
 
 
 
@@ -475,32 +477,34 @@ void page_fault_handler(struct Env * faulted_env, uint32 fault_va)
 
 				//Now, we can place the new page
 				struct FrameInfo *frame;
-				if (allocate_frame(&frame) != 0) {
-        			panic("LRU: allocate_frame failed");
-   				}
+			if (allocate_frame(&frame) != 0) {
+        		panic("LRU: allocate_frame failed");
+   			}
 
-				fault_va = ROUNDDOWN(fault_va, PAGE_SIZE);
+			fault_va = ROUNDDOWN(fault_va, PAGE_SIZE);
 
-				struct WorkingSetElement *Element = env_page_ws_list_create_element(faulted_env, fault_va);
+			struct WorkingSetElement *Element = env_page_ws_list_create_element(faulted_env, fault_va);
 
-				map_frame(faulted_env->env_page_directory, frame, fault_va, PERM_PRESENT | PERM_WRITEABLE | PERM_USER);
+			map_frame(faulted_env->env_page_directory, frame, fault_va, PERM_PRESENT | PERM_WRITEABLE | PERM_USER);
 
 
-				int faultPage = pf_read_env_page(faulted_env, (void*) fault_va);
+			int faultPage = pf_read_env_page(faulted_env, (void*) fault_va);
 
-				if (faultPage == E_PAGE_NOT_EXIST_IN_PF){
-					if (!(fault_va >= USTACKBOTTOM && fault_va < USTACKTOP) && !(fault_va >= USER_HEAP_START && fault_va < USER_HEAP_MAX)){
-						unmap_frame(faulted_env->env_page_directory, fault_va);
-						env_exit();
-					}
+			if (faultPage == E_PAGE_NOT_EXIST_IN_PF){
+				if (!(fault_va >= USTACKBOTTOM && fault_va < USTACKTOP) && !(fault_va >= USER_HEAP_START && fault_va < USER_HEAP_MAX)){
+					unmap_frame(faulted_env->env_page_directory, fault_va);
+					env_exit();
 				}
+			}
 
-				if(faulted_env->page_last_WS_element == NULL || faulted_env){
-				LIST_INSERT_TAIL(&(faulted_env->page_WS_list), Element);
-				faulted_env->page_last_WS_element = Element;
-				}
-				else
-				LIST_INSERT_BEFORE(&(faulted_env->page_WS_list), (faulted_env -> page_last_WS_element), Element);
+			if(faulted_env->page_last_WS_element == NULL ){
+			LIST_INSERT_TAIL(&(faulted_env->page_WS_list), Element);
+			if(wsSize == faulted_env->page_WS_max_size-1){
+				faulted_env->page_last_WS_element = LIST_FIRST(&(faulted_env->page_WS_list));
+			}
+			}
+			else
+			LIST_INSERT_BEFORE(&(faulted_env->page_WS_list), (faulted_env -> page_last_WS_element), Element);
 
 
 

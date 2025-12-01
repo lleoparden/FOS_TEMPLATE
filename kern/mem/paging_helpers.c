@@ -60,7 +60,7 @@ inline int pt_get_page_permissions(uint32* directory, uint32 virtual_address )
 
 	if(ptr_page_table != NULL){
 
-		int ret = ptr_page_table[PTX(virtual_address)&~PERM_PRESENT];
+		int ret = ptr_page_table[PTX(virtual_address)];
 		return ret;
 	}
 

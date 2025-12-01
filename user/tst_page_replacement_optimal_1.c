@@ -21,12 +21,13 @@ uint32 expectedRefStream[EXPECTED_REF_CNT] = {
 } ;
 void _main(void)
 {
-	//("STEP 0: checking Initial WS entries ...\n");
+	cprintf("STEP 0: checking Initial WS entries ...\n");
 	bool found ;
 
 #if USE_KHEAP
 	{
 		found = sys_check_WS_list(expectedInitialVAs, 11, 0x800000, 1);
+		cprintf("STEP 0:DONE \n");
 		if (found != 1) panic("INITIAL PAGE WS entry checking failed! Review size of the WS!!\n*****IF CORRECT, CHECK THE ISSUE WITH THE STAFF*****");
 	}
 #else

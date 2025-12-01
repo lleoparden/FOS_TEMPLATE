@@ -368,7 +368,14 @@ void update_WS_time_stamps()
 	//Your code is here
 	struct WorkingSetElement *wse;
 	struct Env* cur_env = get_cpu_proc();
-	LIST_FOREACH(wse, &(cur_env->page_WS_list)) {
+	struct WS_List *ws_list;
+
+	#if USE_KHEAP
+		ws_list = &(cur_env->page_WS_list);
+	#else
+    	ws_list = &(cur_env->PageWorkingSetList);
+	#endif
+	LIST_FOREACH(wse, ws_list) {
 		wse->time_stamp >>=1;
 		uint32 permsPt = pt_get_page_permissions(cur_env->env_page_directory, wse->virtual_address);
 		if(permsPt & PERM_USED) {

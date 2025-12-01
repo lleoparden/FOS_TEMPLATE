@@ -18,6 +18,7 @@
 #include <kern/mem/shared_memory_manager.h>
 #include <kern/tests/utilities.h>
 #include <kern/tests/test_working_set.h>
+#include <inc/syscall.h>
 
 extern uint8 bypassInstrLength ;
 //struct Env* cur_env ;
@@ -523,6 +524,11 @@ void sys_bypassPageFault(uint8 instrLength)
 	bypassInstrLength = instrLength;
 }
 
+void sys_env_set_priority(int32 envID, int priority)
+{
+	env_set_priority(envID, priority);
+}
+
 
 /**************************************************************************/
 /************************* SYSTEM CALLS HANDLER ***************************/
@@ -541,6 +547,10 @@ uint32 syscall(uint32 syscallno, uint32 a1, uint32 a2, uint32 a3, uint32 a4, uin
 	/*2023*/
 	//TODO: [PROJECT'25.IM#4] CPU SCHEDULING - #1 System Calls - Add suitable code here
 	//Your code is here
+	case SYS_env_set_priority:
+		sys_env_set_priority((int32)a1, (int)a2);
+		return 0;
+		break;
 
 	//=============================================
 	case SYS_allocate_user_mem:

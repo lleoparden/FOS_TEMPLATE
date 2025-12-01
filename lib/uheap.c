@@ -19,6 +19,7 @@ void uheap_init()
 		uheapPlaceStrategy = sys_get_uheap_strategy();
 		uheapPageAllocStart = dynAllocEnd + PAGE_SIZE;
 		uheapPageAllocBreak = uheapPageAllocStart;
+		memset (UHeapArr,0,sizeof(UHeapArr));
 
 		__firstTimeFlag = 0;
 	}
@@ -96,14 +97,13 @@ void *malloc(uint32 size)
 					i++;
 				}
 
-				if (freesize == needed_pages)
+				if (freesize >= needed_pages)
 				{
-					allocindx = freestart;
-					break;
-				}
-
-				if (freesize > needed_pages)
-				{
+					if (freesize == needed_pages)
+					{
+						allocindx = freestart;
+						break;
+					}
 					if (freesize > maxfreepage)
 					{
 						maxfreepage = freesize;
@@ -115,18 +115,22 @@ void *malloc(uint32 size)
 
 		if (allocindx == -1) // extend break
 		{
-			if (uheapPageAllocBreak + size > USER_HEAP_MAX)
+			if (size > USER_HEAP_MAX - uheapPageAllocBreak)
 				return NULL; // no space in unused
-			else
-			{
+
 				allocindx = ((uheapPageAllocBreak - USER_HEAP_START) / PAGE_SIZE);
 				uheapPageAllocBreak += size;
-			}
 		}
 	}
 
 	uint32 alloc_addr = USER_HEAP_START + (allocindx * PAGE_SIZE);
 	UHeapArr[allocindx] = needed_pages;
+
+	for(uint32 j=1;j<needed_pages;j++) //marking the entire block as used
+	{
+		UHeapArr[allocindx+j]=1;
+	}
+
 	sys_allocate_user_mem(alloc_addr, size);
 	return (void *)alloc_addr;
 }
@@ -149,10 +153,13 @@ void free(void *virtual_address)
 		uint32 reqpages = UHeapArr[indx];
 
 		if (reqpages == 0)
-			panic("User asking to free an unallocated block!");
+			return;
 		else
 		{
-			UHeapArr[indx] = 0;
+			for(uint32 j=0;j<reqpages;j++) //marking the entire block as unused
+				{
+					UHeapArr[indx+j]=0;
+				}
 		}
 
 		sys_free_user_mem(va, reqpages * PAGE_SIZE);
@@ -160,25 +167,15 @@ void free(void *virtual_address)
 		uint32 end_of_freed_pages = va + (reqpages * PAGE_SIZE);
 		if (end_of_freed_pages == uheapPageAllocBreak)
 		{
-			uint32 arrstart = ((uheapPageAllocStart - USER_HEAP_START) / PAGE_SIZE);
-			uint32 lim = ((va - USER_HEAP_START) / PAGE_SIZE); // limit is the page we just freed
-			uint32 maxusedindx = arrstart;
+			uint32 currentindx= (uheapPageAllocBreak- USER_HEAP_START)/PAGE_SIZE;
+			uint32 startindx= (uheapPageAllocStart- USER_HEAP_START)/PAGE_SIZE;
 
-			for (uint32 i = arrstart; i < lim;)
+			while ((currentindx >startindx) && (UHeapArr[currentindx-1]==0))
 			{
-				if (UHeapArr[i] != 0) // found an allocated block
-				{
-					maxusedindx = i + UHeapArr[i];
-					i += UHeapArr[i];
-				}
-
-				else // empty block
-				{
-					i++;
-				}
+				currentindx--;
 			}
 
-			uheapPageAllocBreak = USER_HEAP_START + (maxusedindx * PAGE_SIZE);
+			uheapPageAllocBreak = USER_HEAP_START+(currentindx*PAGE_SIZE);
 		}
 	}
 	else

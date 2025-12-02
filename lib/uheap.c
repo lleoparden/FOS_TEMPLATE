@@ -242,30 +242,36 @@ void *smalloc(char *sharedVarName, uint32 size, uint8 isWritable)
 	}
 
 	if (allocindx == -1) // extend break
-	{
-		if (uheapPageAllocBreak + size > USER_HEAP_MAX)
 		{
-			release_uspinlock(&uheaplock);
-			return NULL; // no space in unused
+			if (size > USER_HEAP_MAX - uheapPageAllocBreak)
+				return NULL; // no space in unused
+
+				allocindx = ((uheapPageAllocBreak - USER_HEAP_START) / PAGE_SIZE);
+				uheapPageAllocBreak += size;
 		}
-		else
+
+	UHeapArr[allocindx] = needed_pages;
+	for(uint32 j = 1; j < needed_pages; j++)
 		{
-			allocindx = ((uheapPageAllocBreak - USER_HEAP_START) / PAGE_SIZE);
-			uheapPageAllocBreak += size;
+			UHeapArr[allocindx + j] = 1;
 		}
-	}
 
 	uint32 allocVA = USER_HEAP_START + allocindx * PAGE_SIZE;
 	int id = sys_create_shared_object(sharedVarName, size, isWritable, (void *)allocVA);
+
+
 	if (id < 0)
 	{
-		release_uspinlock(&uheaplock);
-		return NULL;
+		for(uint32 j = 0; j < needed_pages; j++)
+			UHeapArr[allocindx + j] = 0;
+
+			release_uspinlock(&uheaplock);
+			return NULL;
 	}
-	UHeapArr[allocindx] = needed_pages;
 	release_uspinlock(&uheaplock);
 	return (void *)allocVA;
 }
+
 
 //========================================
 // [4] SHARE ON ALLOCATED SHARED VARIABLE:
@@ -283,20 +289,80 @@ void *sget(int32 ownerEnvID, char *sharedVarName)
 	// panic("sget() is not implemented yet...!!");
 
 	uint32 size = sys_size_of_shared_object(ownerEnvID, sharedVarName);
-	if (size == E_SHARED_MEM_NOT_EXISTS)
-		return NULL;
+		if (size == E_SHARED_MEM_NOT_EXISTS)
+			return NULL;
 
-	void *allocVA = smalloc(sharedVarName, size, 1);
-	if (allocVA == NULL)
-		return NULL;
+		size = ROUNDUP(size, PAGE_SIZE);
+		uint32 needed_pages = size / PAGE_SIZE;
+		int allocindx = -1;
+		uint32 maxfreepage = 0;
 
-	int id = sys_get_shared_object(ownerEnvID, sharedVarName, (void *)allocVA);
-	if (id < 0)
-	{
-		return NULL;
+		acquire_uspinlock(&uheaplock);
+
+		uint32 lim = ((uheapPageAllocBreak - USER_HEAP_START) / PAGE_SIZE);
+		uint32 i = ((uheapPageAllocStart - USER_HEAP_START) / PAGE_SIZE);
+
+		while (i < lim)
+		{
+			if (UHeapArr[i] != 0)
+				i += UHeapArr[i];
+			else
+			{
+				uint32 freesize = 0;
+				uint32 freestart = i;
+				while (i < lim && UHeapArr[i] == 0)
+				{
+					freesize++;
+					i++;
+				}
+
+				if (freesize >= needed_pages)
+				{
+					if (freesize == needed_pages)
+					{
+						allocindx = freestart;
+						break;
+					}
+					if (freesize > maxfreepage)
+					{
+						maxfreepage = freesize;
+						allocindx = freestart;
+					}
+				}
+			}
+		}
+
+		if (allocindx == -1) // extend break
+		{
+			if (size > USER_HEAP_MAX - uheapPageAllocBreak)
+				return NULL; // no space in unused
+
+				allocindx = ((uheapPageAllocBreak - USER_HEAP_START) / PAGE_SIZE);
+				uheapPageAllocBreak += size;
+		}
+
+		
+		UHeapArr[allocindx] = needed_pages;
+		for(uint32 j = 1; j < needed_pages; j++)
+			UHeapArr[allocindx + j] = 1;
+
+		void *allocVA = (void*)(USER_HEAP_START + (allocindx * PAGE_SIZE));
+
+    release_uspinlock(&uheaplock);
+
+    int id = sys_get_shared_object(ownerEnvID, sharedVarName, allocVA);
+
+    if (id < 0)
+    {
+        acquire_uspinlock(&uheaplock);
+        for (uint32 j = 0; j < needed_pages; j++)
+            UHeapArr[allocindx + j] = 0;
+        release_uspinlock(&uheaplock);
+        return NULL;
+    }
+
+    return allocVA;
 	}
-	return allocVA;
-}
 
 //==================================================================================//
 //============================== BONUS FUNCTIONS ===================================//

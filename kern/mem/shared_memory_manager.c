@@ -214,23 +214,26 @@ int create_shared_object(int32 ownerID, char *shareName, uint32 size, uint8 isWr
 		sharedobj->framesStorage[i] = frame;
 	}
 
-	uint32 va = (uint32)virtual_address;
-	for (uint32 i = 0; i < numPages; i++, va += PAGE_SIZE)
-	{
-		if (map_frame(myenv->env_page_directory, sharedobj->framesStorage[i], va,
-					  PERM_USER | (isWritable ? PERM_WRITEABLE : 0)) < 0)
-		{
-			for (uint32 j = 0; j < numPages; j++)
-				free_frame(sharedobj->framesStorage[j]);
+uint32 va = (uint32)virtual_address;
+for (uint32 i = 0; i < numPages; i++, va += PAGE_SIZE)
+{
+    if (map_frame(myenv->env_page_directory, sharedobj->framesStorage[i], va,
+                  PERM_USER | PERM_WRITEABLE) < 0)
+    {
+        for (uint32 j = 0; j < numPages; j++)
+            free_frame(sharedobj->framesStorage[j]);
 #if USE_KHEAP == 1
-			kfree(sharedobj->framesStorage);
-			kfree(sharedobj);
+        kfree(sharedobj->framesStorage);
+        kfree(sharedobj);
 #else
-			sharedobj->ID = 0;
+        sharedobj->ID = 0;
 #endif
-			return E_NO_SHARE;
-		}
-	}
+        return E_NO_SHARE;
+    }
+
+    tlb_invalidate(myenv->env_page_directory, (void*)va);
+}
+
 
 #if USE_KHEAP == 1
 	acquire_kspinlock(&(AllShares.shareslock));

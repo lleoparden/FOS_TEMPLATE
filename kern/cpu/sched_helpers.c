@@ -683,22 +683,44 @@ int get_load_average()
 	panic("Not implemented function");
 }
 /********* for BSD Priority Scheduler *************/
-
 //==================================================================================//
-
 /*2024*/
 /********* for Priority RR Scheduler *************/
-void env_set_priority(int envID, int priority)
+void env_set_priority(int envID, int new_priority)
 {
 	//TODO: [PROJECT'25.IM#4] CPU SCHEDULING - #1 env_set_priority
 	//Your code is here
-	//Comment the following line
-	panic("env_set_priority() is not implemented yet...!!");
+    struct Env* env;
+    if (envid2env(envID, &env, 0) < 0)
+        return;
+    acquire_kspinlock(&ProcessQueues.qlock);
+    if (env->env_status != ENV_READY)
+    {
+        env->priority = new_priority;
+        release_kspinlock(&ProcessQueues.qlock);
+        return;
+    }
+    sched_remove_ready(env);
+    env->priority = new_priority;
+	
+    sched_insert_ready(env);
+    release_kspinlock(&ProcessQueues.qlock);
+	//	panic("sched_set_starv_thresh() is not implemented yet...!!");
 }
+
 void sched_set_starv_thresh(uint32 starvThresh)
 {
 	//TODO: [PROJECT'25.IM#4] CPU SCHEDULING - #1 sched_set_starv_thresh
 	//Your code is here
-	//Comment the following line
-	panic("sched_set_starv_thresh() is not implemented yet...!!");
+    starvation_threshold = starvThresh;
+	
+    return;
 }
+
+//HELLOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO000000000000000000000000000000//
+void sched_insert_ready(struct Env* env);
+void sched_remove_ready (struct Env* env);
+void sched_insert_new (struct Env* env); 
+void sched_remove_new (struct Env* env); 
+void sched_insert_exit (struct Env* env);
+void sched_remove_exit (struct Env* env);

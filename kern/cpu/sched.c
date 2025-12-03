@@ -219,18 +219,28 @@ void sched_init_BSD(uint8 numOfLevels, uint8 quantum)
 //======================================
 // [6] Initialize PRIORITY RR Scheduler:
 //======================================
+
 void sched_init_PRIRR(uint8 numOfPriorities, uint8 quantum, uint32 starvThresh)
-{
-	{
+    {      
 		//TODO: [PROJECT'25.IM#4] CPU SCHEDULING - #2 sched_init_PRIRR
 		//Your code is here
-		//Comment the following line
-		panic("sched_init_PRIRR() is not implemented yet...!!");
-
-
-
-	}
-	//=========================================
+		    if (numOfPriorities == 0)
+        		return; 
+		   num_of_ready_queues = numOfPriorities;
+#if USE_KHEAP
+        sched_delete_ready_queues();
+        ProcessQueues.env_ready_queues = kmalloc(sizeof(struct Env_Queue) * numOfPriorities);
+        quantums = kmalloc(num_of_ready_queues * sizeof(uint8));
+#endif	
+			
+        for (int i = 0; i < numOfPriorities; i++)
+        {
+            init_queue(&(ProcessQueues.env_ready_queues[i]));
+			quantums[i] = quantum;
+        }
+        kclock_set_quantum(quantum);
+        sched_set_starv_thresh(starvThresh);
+      //=========================================
 	//DON'T CHANGE THESE LINES=================
 	uint16 cnt0 = kclock_read_cnt0_latch() ; //read after write to ensure it's set to the desired value
 	cprintf("*	PRIORITY RR scheduler with initial clock = %d\n", cnt0);
@@ -238,13 +248,14 @@ void sched_init_PRIRR(uint8 numOfPriorities, uint8 quantum, uint32 starvThresh)
 	scheduler_method = SCH_PRIRR;
 	//=========================================
 	//=========================================
-}
-
+    }
 //=========================
 // [7] RR Scheduler:
 //=========================
 struct Env* fos_scheduler_RR()
 {
+	//TODO: [PROJECT'25.IM#4] CPU SCHEDULING - #3 fos_scheduler_PRIRR
+	//Your code is here
 	// Implement simple round-robin scheduling.
 	// Pick next environment from the ready queue,
 	// and switch to such environment if found.
@@ -306,16 +317,29 @@ struct Env* fos_scheduler_BSD()
 //=============================
 struct Env* fos_scheduler_PRIRR()
 {
-	/*To protect process Qs (or info of current process) in multi-CPU************************/
 	if(!holding_kspinlock(&ProcessQueues.qlock))
 		panic("fos_scheduler_PRIRR: q.lock is not held by this CPU while it's expected to be.");
-	/****************************************************************************************/
-	//TODO: [PROJECT'25.IM#4] CPU SCHEDULING - #3 fos_scheduler_PRIRR
-	//Your code is here
-	//Comment the following line
-	panic("fos_scheduler_PRIRR() is not implemented yet...!!");
-}
+	
+	struct Env *next_env = NULL;
+	struct Env *cur_env = get_cpu_proc();
+	
+	if (cur_env != NULL)
+	{
+		int priority = cur_env->priority;
+		enqueue(&(ProcessQueues.env_ready_queues[priority]), cur_env);
+	}
+	
+	for (int i = 0; i < num_of_ready_queues; i++)
+	{
+		next_env = dequeue(&(ProcessQueues.env_ready_queues[i]));
+		if (next_env != NULL)
+			break;
+	}
+		//panic("fos_scheduler_PRIRR() is not implemented yet...!!");
 
+	
+         	return next_env;
+}
 //========================================
 // [11] Clock Interrupt Handler
 //	  (Automatically Called Every Quantum)
@@ -326,11 +350,28 @@ void clock_interrupt_handler(struct Trapframe* tf)
 	{
 		//TODO: [PROJECT'25.IM#4] CPU SCHEDULING - #4 clock_interrupt_handler
 		//Your code is here
+		for (int i = 1; i < num_of_ready_queues; i++)
+        {
+            struct Env* proc = LIST_FIRST(&(ProcessQueues.env_ready_queues[i]));
+
+            while (proc != NULL)
+            {
+                struct Env* next = LIST_NEXT(proc);
+
+                if (proc->nClocks >= starvation_threshold)
+                {
+                    sched_remove_ready(proc);
+                    proc->priority = i - 1;
+                    proc->nClocks = 0;
+                    sched_insert_ready(proc);
+                }
+                proc = next;
+            }
+        }
+
+
 		//Comment the following line
-		panic("clock_interrupt_handler() is not implemented yet...!!");
-
-
-
+		//panic("clock_interrupt_handler() is not implemented yet...!!");
 	}
 
 	/********DON'T CHANGE THESE LINES***********/
@@ -355,7 +396,7 @@ void clock_interrupt_handler(struct Trapframe* tf)
 		//fos_scheduler();
 		yield();
 	}
-	/*****************************************/
+    /*****************************************/
 }
 
 //===================================================================

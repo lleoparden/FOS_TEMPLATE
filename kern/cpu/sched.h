@@ -85,5 +85,11 @@ void fos_scheduler(void) __attribute__((noreturn));
 void sched_init();
 void clock_interrupt_handler(struct Trapframe* tf);
 void update_WS_time_stamps();
+ 
+//HEYYYYYYYYYYYYYYYYYYYYYYY
+uint8 num_priorities;           // Number of priority levels
+uint8 time_quantum;             // CPU quantum in milliseconds
+uint32 starvation_threshold;    // Starvation threshold in ticks
 
-#endif	// !FOS_KERN_SCHED_H
+#endif	// FOS_KERN_SCHED_H
+

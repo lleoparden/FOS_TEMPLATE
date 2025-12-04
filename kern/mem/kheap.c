@@ -301,13 +301,14 @@ void kfree(void *virtual_address)
 	// Use dynamic allocator to free the given address
 	//	If virtual address inside the [PAGE ALLOCATOR] range
 	// FREE the space of the given address from RAM
-	//	Else (i.e. invalid address): should panic(�)
+	//	Else (i.e. invalid address): should panic
 #if USE_KHEAP
 
 	acquire_kspinlock(&kheap_lock);
 
 	uint32 va = (uint32)virtual_address; // cast since the passed parameter is a ptr
 	uint32 *table_ptr = NULL;
+
 	if (va >= dynAllocStart && va < dynAllocEnd)
 	{
 		release_kspinlock(&kheap_lock);
@@ -319,10 +320,10 @@ void kfree(void *virtual_address)
 		struct FrameInfo *frameptr = get_frame_info(ptr_page_directory, va, &table_ptr);
 		if (frameptr != NULL)
 		{
-			if (!frameptr->is_start_of_alloc)
+			if ((frameptr->is_start_of_alloc)==0)
 			{
 				release_kspinlock(&kheap_lock);
-				panic("Invalid Address; Not Start Of A Block!");
+				panic("Invalid Address: not a start of a block!");
 			}
 
 			uint32 size = frameptr->allocation_size;
@@ -332,8 +333,8 @@ void kfree(void *virtual_address)
 				unmap_frame(ptr_page_directory, current_va);
 			}
 
-			uint32 end_of_freed_frames = va + (size * PAGE_SIZE);
-			if (end_of_freed_frames == kheapPageAllocBreak)
+			uint32 final_frame = va + (size * PAGE_SIZE);
+			if (final_frame == kheapPageAllocBreak)
 			{
 				while (kheapPageAllocBreak > kheapPageAllocStart)
 				{
@@ -353,14 +354,14 @@ void kfree(void *virtual_address)
 		else
 		{
 			release_kspinlock(&kheap_lock);
-			panic("Null Frame !");
+			panic("Null frame.");
 		}
 	}
 
 	else
 	{
 		release_kspinlock(&kheap_lock);
-		panic("Virtual Address Not Found!");
+		panic("Virtual Address not found!");
 	}
 #else
 	panic("kfree: USE_KHEAP not enabled!");
@@ -374,12 +375,13 @@ void kfree(void *virtual_address)
 unsigned int kheap_virtual_address(unsigned int physical_address)
 {
 #if USE_KHEAP
-	struct FrameInfo *frameptr = to_frame_info(physical_address);
+	uint32 pa = (uint32)physical_address;
+	struct FrameInfo *frameptr = to_frame_info(pa);
 	if (frameptr == NULL)
 		return 0;
 	if (frameptr->va == 0)
-		return 0; // to avoid returning an address with non-zero offset
-	uint32 offset = physical_address % PAGE_SIZE;
+		return 0; // to avoid returning an address with non zero offset
+	uint32 offset = pa % PAGE_SIZE;
 	return ((frameptr->va) + offset);
 #else
 	panic("kheap_virtual_address: USE_KHEAP not enabled!");
@@ -393,23 +395,23 @@ unsigned int kheap_virtual_address(unsigned int physical_address)
 unsigned int kheap_physical_address(unsigned int virtual_address)
 {
 #if USE_KHEAP
+	uint32 va = (uint32)virtual_address;
+	bool blockalloc_range = (va >= dynAllocStart && va < dynAllocEnd);
+	bool pagealloc_range = (va >= kheapPageAllocStart && va < kheapPageAllocBreak);
 
-	bool within_blockalloc_range = (virtual_address >= dynAllocStart && virtual_address < dynAllocEnd);
-	bool within_pagealloc_range = (virtual_address >= kheapPageAllocStart && virtual_address < kheapPageAllocBreak);
-
-	if (!within_blockalloc_range && !within_pagealloc_range)
+	if (!blockalloc_range && !pagealloc_range)
 		return 0; // address outside kernel heap
 
 	uint32 *table_ptr = NULL;
-	struct FrameInfo *frameptr = get_frame_info(ptr_page_directory, virtual_address, &table_ptr);
+	struct FrameInfo *frameptr = get_frame_info(ptr_page_directory, va, &table_ptr);
 	if (frameptr == NULL)
 		return 0;
 	else
 	{
-		uint32 page_table_index = PTX(virtual_address);
-		uint32 page_table_entry = table_ptr[page_table_index];
+		uint32 page_table_indx = PTX(va);
+		uint32 page_table_entry = table_ptr[page_table_indx];
 		uint32 base_address = page_table_entry & (~0xFFF); // base address is the first 20 bits
-		uint32 offset = virtual_address % PAGE_SIZE;
+		uint32 offset = va % PAGE_SIZE;
 
 		return base_address + offset;
 	}

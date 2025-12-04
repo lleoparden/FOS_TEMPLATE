@@ -309,6 +309,8 @@ extend_heap:
 
 	return (void *)va;
 
+}
+
 #else
 	panic("kmalloc: USE_KHEAP not enabled!");
 #endif

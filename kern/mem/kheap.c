@@ -291,7 +291,7 @@ extend_heap:
 			return NULL;
 		}
 
-					if (i == 0){
+				if (i == 0){
 					    fi->allocation_size = num_of_pages;}
 					else{
 					    fi->allocation_size = 0;
@@ -311,9 +311,8 @@ extend_heap:
 
 #else
 	panic("kmalloc: USE_KHEAP not enabled!");
-	return NULL;
 #endif
-}
+
 
 
 	// TODO: [PROJECT'25.BONUS#3] FAST PAGE ALLOCATOR
@@ -392,7 +391,6 @@ void kfree(void *virtual_address)
 	}
 #else
 	panic("kfree: USE_KHEAP not enabled!");
-	return NULL;
 #endif
 }
 
@@ -412,7 +410,6 @@ unsigned int kheap_virtual_address(unsigned int physical_address)
 	return ((frameptr->va) + offset);
 #else
 	panic("kheap_virtual_address: USE_KHEAP not enabled!");
-	return NULL;
 #endif
 }
 
@@ -444,7 +441,6 @@ unsigned int kheap_physical_address(unsigned int virtual_address)
 	}
 #else
 	panic("kheap_physical_address: USE_KHEAP not enabled!");
-	return NULL;
 #endif
 }
 
@@ -536,6 +532,5 @@ void *krealloc(void *virtual_address, uint32 new_size)
 
 #else
 	panic("krealloc: USE_KHEAP not enabled!");
-	return NULL;
 #endif
 }

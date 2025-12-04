@@ -137,7 +137,6 @@ void *malloc(uint32 size)
 
 #else
 	panic("malloc: USE_KHEAP not enabled!");
-	return NULL;
 #endif
 }
 
@@ -190,7 +189,6 @@ void free(void *virtual_address)
 
 #else
 	panic("free: USE_KHEAP not enabled!");
-	return NULL;
 #endif
 }
 
@@ -286,7 +284,6 @@ void *smalloc(char *sharedVarName, uint32 size, uint8 isWritable)
 
 #else
 	panic("smalloc: USE_KHEAP not enabled!");
-	return NULL;
 #endif
 }
 
@@ -383,7 +380,6 @@ void *sget(int32 ownerEnvID, char *sharedVarName)
     return allocVA;
 #else
 	panic("sget: USE_KHEAP not enabled!");
-	return NULL;
 #endif
 }
 

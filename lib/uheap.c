@@ -65,6 +65,7 @@ void *malloc(uint32 size)
 	// Your code is here
 	// Comment the following line
 	// panic("malloc() is not implemented yet...!!");
+#if USE_KHEAP
 
 	int allocindx = -1;
 	uint32 actualsize = size;
@@ -133,6 +134,11 @@ void *malloc(uint32 size)
 
 	sys_allocate_user_mem(alloc_addr, size);
 	return (void *)alloc_addr;
+
+#else
+	panic("malloc: USE_KHEAP not enabled!");
+	return NULL;
+#endif
 }
 
 //=================================
@@ -141,6 +147,7 @@ void *malloc(uint32 size)
 void free(void *virtual_address)
 {
 	// TODO: [PROJECT'25.IM#2] USER HEAP - #3 free
+#if USE_KHEAP
 	uint32 va = (uint32)virtual_address;
 	if (va >= dynAllocStart && va < dynAllocEnd)
 	{
@@ -180,6 +187,11 @@ void free(void *virtual_address)
 	}
 	else
 		panic("Invalid address outside user heap range!");
+
+#else
+	panic("free: USE_KHEAP not enabled!");
+	return NULL;
+#endif
 }
 
 //=================================
@@ -198,6 +210,7 @@ void *smalloc(char *sharedVarName, uint32 size, uint8 isWritable)
 	// Your code is here
 	// Comment the following line
 	//  panic("smalloc() is not implemented yet...!!");
+#if USE_KHEAP
 
 	int allocindx = -1;
 	size = ROUNDUP(size, PAGE_SIZE);
@@ -270,6 +283,11 @@ void *smalloc(char *sharedVarName, uint32 size, uint8 isWritable)
 	}
 	release_uspinlock(&uheaplock);
 	return (void *)allocVA;
+
+#else
+	panic("smalloc: USE_KHEAP not enabled!");
+	return NULL;
+#endif
 }
 
 
@@ -287,6 +305,7 @@ void *sget(int32 ownerEnvID, char *sharedVarName)
 	// Your code is here
 	// Comment the following line
 	// panic("sget() is not implemented yet...!!");
+#if USE_KHEAP
 
 	uint32 size = sys_size_of_shared_object(ownerEnvID, sharedVarName);
 		if (size == E_SHARED_MEM_NOT_EXISTS)
@@ -341,7 +360,7 @@ void *sget(int32 ownerEnvID, char *sharedVarName)
 				uheapPageAllocBreak += size;
 		}
 
-		
+
 		UHeapArr[allocindx] = needed_pages;
 		for(uint32 j = 1; j < needed_pages; j++)
 			UHeapArr[allocindx + j] = 1;
@@ -362,7 +381,11 @@ void *sget(int32 ownerEnvID, char *sharedVarName)
     }
 
     return allocVA;
-	}
+#else
+	panic("sget: USE_KHEAP not enabled!");
+	return NULL;
+#endif
+}
 
 //==================================================================================//
 //============================== BONUS FUNCTIONS ===================================//

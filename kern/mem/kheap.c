@@ -61,6 +61,7 @@ void return_page(void *va)
 //===================================
 void *kmalloc(unsigned int size)
 {
+#if USE_KHEAP
 	uint32 *ptr_page_table = NULL;
 	// TODO: [PROJECT'25.GM#2] KERNEL HEAP - #1 kmalloc
 	// Your code is here
@@ -280,7 +281,13 @@ extend_heap:
 	release_kspinlock(&kheap_lock);
 
 	return (void *)va;
+
+#else
+	panic("kmalloc: USE_KHEAP not enabled!");
+	return NULL;
+#endif
 }
+
 
 	// TODO: [PROJECT'25.BONUS#3] FAST PAGE ALLOCATOR
 }
@@ -295,6 +302,7 @@ void kfree(void *virtual_address)
 	//	If virtual address inside the [PAGE ALLOCATOR] range
 	// FREE the space of the given address from RAM
 	//	Else (i.e. invalid address): should panic(�)
+#if USE_KHEAP
 
 	acquire_kspinlock(&kheap_lock);
 
@@ -354,6 +362,10 @@ void kfree(void *virtual_address)
 		release_kspinlock(&kheap_lock);
 		panic("Virtual Address Not Found!");
 	}
+#else
+	panic("kfree: USE_KHEAP not enabled!");
+	return NULL;
+#endif
 }
 
 //=================================
@@ -361,6 +373,7 @@ void kfree(void *virtual_address)
 //=================================
 unsigned int kheap_virtual_address(unsigned int physical_address)
 {
+#if USE_KHEAP
 	struct FrameInfo *frameptr = to_frame_info(physical_address);
 	if (frameptr == NULL)
 		return 0;
@@ -368,6 +381,10 @@ unsigned int kheap_virtual_address(unsigned int physical_address)
 		return 0; // to avoid returning an address with non-zero offset
 	uint32 offset = physical_address % PAGE_SIZE;
 	return ((frameptr->va) + offset);
+#else
+	panic("kheap_virtual_address: USE_KHEAP not enabled!");
+	return NULL;
+#endif
 }
 
 //=================================
@@ -375,6 +392,8 @@ unsigned int kheap_virtual_address(unsigned int physical_address)
 //=================================
 unsigned int kheap_physical_address(unsigned int virtual_address)
 {
+#if USE_KHEAP
+
 	bool within_blockalloc_range = (virtual_address >= dynAllocStart && virtual_address < dynAllocEnd);
 	bool within_pagealloc_range = (virtual_address >= kheapPageAllocStart && virtual_address < kheapPageAllocBreak);
 
@@ -394,6 +413,10 @@ unsigned int kheap_physical_address(unsigned int virtual_address)
 
 		return base_address + offset;
 	}
+#else
+	panic("kheap_physical_address: USE_KHEAP not enabled!");
+	return NULL;
+#endif
 }
 
 //=================================================================================//
@@ -417,6 +440,7 @@ void *krealloc(void *virtual_address, uint32 new_size)
 	// Your code is here
 	// Comment the following line
 	// panic("krealloc() is not implemented yet...!!");
+#if USE_KHEAP
 
 	if (virtual_address == NULL)
 	{
@@ -480,4 +504,9 @@ void *krealloc(void *virtual_address, uint32 new_size)
 	release_kspinlock(&kheap_lock);
 	panic("krealloc: invalid pointer");
 	return NULL;
+
+#else
+	panic("krealloc: USE_KHEAP not enabled!");
+	return NULL;
+#endif
 }

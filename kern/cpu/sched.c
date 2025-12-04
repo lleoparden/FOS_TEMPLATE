@@ -254,8 +254,7 @@ void sched_init_PRIRR(uint8 numOfPriorities, uint8 quantum, uint32 starvThresh)
 //=========================
 struct Env* fos_scheduler_RR()
 {
-	//TODO: [PROJECT'25.IM#4] CPU SCHEDULING - #3 fos_scheduler_PRIRR
-	//Your code is here
+
 	// Implement simple round-robin scheduling.
 	// Pick next environment from the ready queue,
 	// and switch to such environment if found.
@@ -317,6 +316,8 @@ struct Env* fos_scheduler_BSD()
 //=============================
 struct Env* fos_scheduler_PRIRR()
 {
+		//TODO: [PROJECT'25.IM#4] CPU SCHEDULING - #3 fos_scheduler_PRIRR
+	//Your code is here
 	if(!holding_kspinlock(&ProcessQueues.qlock))
 		panic("fos_scheduler_PRIRR: q.lock is not held by this CPU while it's expected to be.");
 	
@@ -350,25 +351,25 @@ void clock_interrupt_handler(struct Trapframe* tf)
 	{
 		//TODO: [PROJECT'25.IM#4] CPU SCHEDULING - #4 clock_interrupt_handler
 		//Your code is here
-		for (int i = 1; i < num_of_ready_queues; i++)
-        {
-            struct Env* proc = LIST_FIRST(&(ProcessQueues.env_ready_queues[i]));
-
-            while (proc != NULL)
-            {
-                struct Env* next = LIST_NEXT(proc);
-
-                if (proc->nClocks >= starvation_threshold)
-                {
-                    sched_remove_ready(proc);
-                    proc->priority = i - 1;
-                    proc->nClocks = 0;
-                    sched_insert_ready(proc);
-                }
-                proc = next;
-            }
-        }
-
+		acquire_kspinlock(&ProcessQueues.qlock);
+		for (int i = 0; i < num_of_ready_queues; i++)
+		{
+			struct Env *env = LIST_FIRST(&ProcessQueues.env_ready_queues[i]);
+			while (env != NULL)
+			{struct Env *next = LIST_NEXT(env);
+				env->starvation_counter++;
+				if (env->starvation_counter >= starvation_threshold)
+				{
+					env->starvation_counter = 0;
+					if (env->priority > 0)
+					{
+						sched_remove_ready(env);
+						env->priority--;
+						sched_insert_ready(env);
+					}
+				}
+				env = next;}}
+		release_kspinlock(&ProcessQueues.qlock);
 
 		//Comment the following line
 		//panic("clock_interrupt_handler() is not implemented yet...!!");

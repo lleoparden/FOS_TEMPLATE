@@ -178,6 +178,7 @@ struct Env {
 	//==================
 	/*CPU PRIORITY RR Sched...*/
 	//==================
+	uint32 starvation_counter;
 
 	//================
 	/*STATISTICS...*/

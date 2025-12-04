@@ -702,7 +702,7 @@ void env_set_priority(int envID, int new_priority)
     }
     sched_remove_ready(env);
     env->priority = new_priority;
-	
+	env->starvation_counter=0;
     sched_insert_ready(env);
     release_kspinlock(&ProcessQueues.qlock);
 	//	panic("sched_set_starv_thresh() is not implemented yet...!!");

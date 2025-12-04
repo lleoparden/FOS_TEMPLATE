@@ -925,7 +925,7 @@ void* create_user_kern_stack(uint32* ptr_user_page_directory)
 
 
 	//point 1 done
-	void* kern_stack_base = kmalloc(KERNEL_STACK_SIZE + PAGE_SIZE);
+	void* kern_stack_base = kmalloc(KERNEL_STACK_SIZE);
 
 	if(kern_stack_base == NULL){
 		panic("Failed to allocate kernel stack");

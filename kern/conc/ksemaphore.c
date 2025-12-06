@@ -26,7 +26,7 @@ void wait_ksemaphore(struct ksemaphore *ksem)
 	//Your code is here
 	//Comment the following line
 	//panic("wait_ksemaphore() is not implemented yet...!!");
-
+#if USE_KHEAP
 	acquire_kspinlock(&(ksem -> lk));
 	ksem->count--;
 
@@ -36,7 +36,7 @@ void wait_ksemaphore(struct ksemaphore *ksem)
 
 	release_kspinlock(&(ksem -> lk));
 
-
+#endif
 }
 
 void signal_ksemaphore(struct ksemaphore *ksem)
@@ -45,7 +45,7 @@ void signal_ksemaphore(struct ksemaphore *ksem)
 	//Your code is here
 	//Comment the following line
 	//panic("signal_ksemaphore() is not implemented yet...!!");
-
+#if USE_KHEAP
 	acquire_kspinlock(&(ksem -> lk));
 
 	ksem -> count++;
@@ -54,7 +54,7 @@ void signal_ksemaphore(struct ksemaphore *ksem)
 	}
 
 	release_kspinlock(&(ksem -> lk));
-
+#endif
 }
 
 

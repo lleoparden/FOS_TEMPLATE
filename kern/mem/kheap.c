@@ -168,7 +168,7 @@ void *kmalloc(unsigned int size)
 					else{
 					    fi->allocation_size = 0;
 					}
-					
+
 					if (i == 0) {
 					    fi->is_start_of_alloc = 1;
 					}
@@ -203,7 +203,7 @@ void *kmalloc(unsigned int size)
 					else{
 					    fi->allocation_size = 0;
 					}
-					
+
 					if (i == 0) {
 					    fi->is_start_of_alloc = 1;
 					}
@@ -271,7 +271,7 @@ extend_heap:
 	{
 		uint32 cur_va = va + i * PAGE_SIZE;
 
-		
+
 		struct FrameInfo *fi = to_frame_info(kheap_physical_address(cur_va));
 
 		if (fi == NULL)
@@ -296,7 +296,7 @@ extend_heap:
 					else{
 					    fi->allocation_size = 0;
 					}
-					
+
 					if (i == 0) {
 					    fi->is_start_of_alloc = 1;
 					}
@@ -434,12 +434,12 @@ unsigned int kheap_physical_address(unsigned int virtual_address)
 		return 0;
 	else
 	{
-		uint32 page_table_indx = PTX(va);
-		uint32 page_table_entry = table_ptr[page_table_indx];
-		uint32 base_address = page_table_entry & (~0xFFF); // base address is the first 20 bits
+		uint32 pt_indx = PTX(va);
+		uint32 pt_entry = table_ptr[pt_indx];
+		uint32 base_addr = pt_entry & (~0xFFF); // base address is the first 20 bits
 		uint32 offset = va % PAGE_SIZE;
 
-		return base_address + offset;
+		return base_addr + offset;
 	}
 #else
 	panic("kheap_physical_address: USE_KHEAP not enabled!");

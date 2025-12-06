@@ -79,23 +79,23 @@ void *malloc(uint32 size)
 	{
 		uint32 maxfreepage = 0;
 		uint32 lim = ((uheapPageAllocBreak - USER_HEAP_START) / PAGE_SIZE);
-		uint32 i = ((uheapPageAllocStart - USER_HEAP_START) / PAGE_SIZE);
+		uint32 currentindx = ((uheapPageAllocStart - USER_HEAP_START) / PAGE_SIZE);
 
-		while (i < lim)
+		while (currentindx < lim)
 		{
 
-			if (UHeapArr[i] != 0) // page allocated so skip whole page
-				i += UHeapArr[i];
+			if (UHeapArr[currentindx] != 0) // page allocated so skip whole page
+				currentindx += UHeapArr[currentindx];
 
 			else // page not allocated (free page)
 			{
 				uint32 freesize = 0;
-				uint32 freestart = i;
+				uint32 freestart = currentindx;
 
-				while (i < lim && UHeapArr[i] == 0) // see how many pages are free
+				while (currentindx < lim && UHeapArr[currentindx] == 0) // see how many pages are free
 				{
 					freesize++;
-					i++;
+					currentindx++;
 				}
 
 				if (freesize >= needed_pages)
@@ -114,13 +114,15 @@ void *malloc(uint32 size)
 			}
 		}
 
-		if (allocindx == -1) // extend break
+		if (allocindx == -1) // no exact, no worst fit so if possible extend break
 		{
 			if (size > USER_HEAP_MAX - uheapPageAllocBreak)
 				return NULL; // no space in unused
 
+			else {
 				allocindx = ((uheapPageAllocBreak - USER_HEAP_START) / PAGE_SIZE);
 				uheapPageAllocBreak += size;
+			    }
 		}
 	}
 

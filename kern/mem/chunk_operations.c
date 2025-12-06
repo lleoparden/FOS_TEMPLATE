@@ -167,9 +167,12 @@ void allocate_user_mem(struct Env* e, uint32 virtual_address, uint32 size)
 				pagetableptr=create_page_table(e->env_page_directory,i);
 			}
 
-			if(pagetableptr!=NULL)
+			if(pagetableptr!=NULL) //set uhpage bit in addition to giving user permission to read/write in page
 			{
-				pagetableptr[PTX(i)] |= PERM_USER|PERM_WRITEABLE|PERM_UHPAGE;  //set uhpage bit in addition to giving user permission to read/write in page
+				uint32 pt_indx = PTX(i);
+				uint32 pt_entry = pagetableptr[pt_indx];
+				pt_entry= pt_entry|(PERM_USER|PERM_WRITEABLE|PERM_UHPAGE);
+				pagetableptr[pt_indx]=pt_entry;
 			}
 		}
 }
@@ -191,7 +194,11 @@ void free_user_mem(struct Env* e, uint32 virtual_address, uint32 size)
 		int pagetable =get_page_table(e->env_page_directory,i,&pagetableptr);
 		if (pagetable==TABLE_IN_MEMORY && pagetableptr !=NULL)
 		{
-			pagetableptr[PTX(i)] &= ~(PERM_USER|PERM_WRITEABLE|PERM_UHPAGE);
+			uint32 pt_indx = PTX(i);
+			uint32 pt_entry = pagetableptr[pt_indx];
+			pt_entry= pt_entry &(~(PERM_USER|PERM_WRITEABLE|PERM_UHPAGE));
+			pagetableptr[pt_indx]=pt_entry;
+
 		}
 
 	}

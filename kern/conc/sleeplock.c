@@ -30,7 +30,7 @@ void acquire_sleeplock(struct sleeplock *lk)
 	//Your code is here
 	//Comment the following line
 	//panic("acquire_sleeplock() is not implemented yet...!!");
-
+#if USE_KHEAP
 	acquire_kspinlock(&(lk->lk));
 
 	while(lk -> locked){
@@ -39,6 +39,7 @@ void acquire_sleeplock(struct sleeplock *lk)
 
 	lk -> locked = 1;
 	release_kspinlock(&(lk->lk));
+#endif
 }
 
 void release_sleeplock(struct sleeplock *lk)
@@ -47,7 +48,7 @@ void release_sleeplock(struct sleeplock *lk)
 	//Your code is here
 	//Comment the following line
 	//panic("release_sleeplock() is not implemented yet...!!");
-
+#if USE_KHEAP
 	acquire_kspinlock(&(lk->lk));
 
 	if(queue_size(&(lk -> chan.queue))>0){
@@ -58,6 +59,7 @@ void release_sleeplock(struct sleeplock *lk)
 
 	lk -> locked = 0;
 	release_kspinlock(&(lk ->lk));
+#endif
 }
 
 int holding_sleeplock(struct sleeplock *lk)

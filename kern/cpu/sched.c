@@ -219,36 +219,39 @@ void sched_init_BSD(uint8 numOfLevels, uint8 quantum)
 //======================================
 // [6] Initialize PRIORITY RR Scheduler:
 //======================================
-
 void sched_init_PRIRR(uint8 numOfPriorities, uint8 quantum, uint32 starvThresh)
-    {      
-		//TODO: [PROJECT'25.IM#4] CPU SCHEDULING - #2 sched_init_PRIRR
-		//Your code is here
-		    if (numOfPriorities == 0)
-        		return; 
-		   num_of_ready_queues = numOfPriorities;
+{
+    if (numOfPriorities == 0)
+        return;
+
+    num_of_ready_queues = numOfPriorities;
+
 #if USE_KHEAP
-        sched_delete_ready_queues();
-        ProcessQueues.env_ready_queues = kmalloc(sizeof(struct Env_Queue) * numOfPriorities);
-        quantums = kmalloc(num_of_ready_queues * sizeof(uint8));
-#endif	
-			
-        for (int i = 0; i < numOfPriorities; i++)
-        {
-            init_queue(&(ProcessQueues.env_ready_queues[i]));
-			quantums[i] = quantum;
-        }
-        kclock_set_quantum(quantum);
-        sched_set_starv_thresh(starvThresh);
-      //=========================================
-	//DON'T CHANGE THESE LINES=================
-	uint16 cnt0 = kclock_read_cnt0_latch() ; //read after write to ensure it's set to the desired value
-	cprintf("*	PRIORITY RR scheduler with initial clock = %d\n", cnt0);
-	mycpu()->scheduler_status = SCH_STOPPED;
-	scheduler_method = SCH_PRIRR;
-	//=========================================
-	//=========================================
+    sched_delete_ready_queues();
+    ProcessQueues.env_ready_queues = kmalloc(sizeof(struct Env_Queue) * numOfPriorities);
+    quantums = kmalloc(sizeof(uint8));
+#endif
+
+
+    for (int i = 0; i < numOfPriorities; i++)
+    {
+        init_queue(&(ProcessQueues.env_ready_queues[i]));
     }
+
+
+    quantums[0] = quantum;
+
+    kclock_set_quantum(quantum);
+    sched_set_starv_thresh(starvThresh);
+
+    //=========================================
+    //DON'T CHANGE THESE LINES=================
+    uint16 cnt0 = kclock_read_cnt0_latch();
+    cprintf("*	PRIORITY RR scheduler with initial clock = %d\n", cnt0);
+    mycpu()->scheduler_status = SCH_STOPPED;
+    scheduler_method = SCH_PRIRR;
+    //=========================================
+}
 //=========================
 // [7] RR Scheduler:
 //=========================
@@ -321,18 +324,18 @@ struct Env* fos_scheduler_PRIRR()
 	//Your code is here
     if(!holding_kspinlock(&ProcessQueues.qlock))
         panic("fos_scheduler_PRIRR: q.lock is not held by this CPU while it's expected to be.");
-    
+
     struct Env *next_env = NULL;
     struct Env *cur_env = get_cpu_proc();
-    
-    
+
+
     if (cur_env != NULL && cur_env->env_status == ENV_READY)
     {
         int priority = cur_env->priority;
         enqueue(&(ProcessQueues.env_ready_queues[priority]), cur_env);
     }
-    
-    
+
+
     for (int i = 0; i < num_of_ready_queues; i++)
     {
         next_env = dequeue(&(ProcessQueues.env_ready_queues[i]));
@@ -342,10 +345,10 @@ struct Env* fos_scheduler_PRIRR()
             break;
         }
     }
-    
-    
+
+
     kclock_set_quantum(quantums[0]);
-    
+
     return next_env;
 	//panic("fos_scheduler_PRIRR() is not implemented yet...!!");
 
@@ -362,33 +365,33 @@ void clock_interrupt_handler(struct Trapframe* tf)
 		//TODO: [PROJECT'25.IM#4] CPU SCHEDULING - #4 clock_interrupt_handler
 		//Your code is here
         acquire_kspinlock(&ProcessQueues.qlock);
-        
-        
-        for (int i = num_of_ready_queues - 1; i > 0; i--)  
+
+
+        for (int i = num_of_ready_queues - 1; i > 0; i--)
         {
             struct Env *env = LIST_FIRST(&(ProcessQueues.env_ready_queues[i]));
-            
+
             while (env != NULL)
             {
                 struct Env *next = LIST_NEXT(env);
-                
-                
+
+
                 env->starvation_counter++;
-                
-                
+
+
                 if (env->starvation_counter >= starvation_threshold)
                 {
-                    
+
                     sched_remove_ready(env);
-                    env->priority--;  
-                    env->starvation_counter = 0;  
+                    env->priority--;
+                    env->starvation_counter = 0;
                     sched_insert_ready(env);
                 }
-                
+
                 env = next;
             }
         }
-        
+
         release_kspinlock(&ProcessQueues.qlock);
 
     	//Comment the following line
@@ -443,7 +446,7 @@ void update_WS_time_stamps()
 		if(permsPt & PERM_USED) {
 			wse->time_stamp |= 0x80000000;
 			pt_set_page_permissions(cur_env->env_page_directory, wse->virtual_address, 0, PERM_USED);
-		}	
+		}
 	}
 
 	//Comment the following line

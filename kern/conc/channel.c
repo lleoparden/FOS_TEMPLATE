@@ -32,7 +32,7 @@ void sleep(struct Channel *chan, struct kspinlock* lk)
 	//Your code is here
 	//Comment the following line
 	//panic("sleep() is not implemented yet...!!");
-
+#if USE_KHEAP
 	acquire_kspinlock(&(ProcessQueues.qlock));
 
 	struct Env * e = get_cpu_proc();
@@ -57,7 +57,7 @@ void sleep(struct Channel *chan, struct kspinlock* lk)
 	release_kspinlock(&(ProcessQueues.qlock));
 	//when woke up , reacquire the guard spinlock
 	acquire_kspinlock(lk);
-
+#endif
 
 }
 
@@ -74,6 +74,8 @@ void wakeup_one(struct Channel *chan)
 	//Your code is here
 	//Comment the following line
 	//panic("wakeup_one() is not implemented yet...!!");
+
+#if USE_KHEAP
 		struct Env * e;
 
 		acquire_kspinlock(&(ProcessQueues.qlock));
@@ -94,7 +96,7 @@ void wakeup_one(struct Channel *chan)
 		release_kspinlock(&(ProcessQueues.qlock));
 
 
-
+#endif
 }
 
 //====================================================
@@ -111,11 +113,11 @@ void wakeup_all(struct Channel *chan)
 	//Your code is here
 	//Comment the following line
 	//panic("wakeup_all() is not implemented yet...!!");
-
+#if USE_KHEAP
 	while (queue_size(&(chan -> queue)) > 0){
 		wakeup_one(chan);
 	}
 
-
+#endif
 }
 

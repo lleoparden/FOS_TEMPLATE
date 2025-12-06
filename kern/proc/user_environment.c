@@ -918,7 +918,7 @@ void* create_user_kern_stack(uint32* ptr_user_page_directory)
 	//allocate space for the user kernel stack.
 	//remember to leave its bottom page as a GUARD PAGE (i.e. not mapped)
 	//return a pointer to the start of the allocated space (including the GUARD PAGE)
-
+#if USE_KHEAP
 	if(!ptr_user_page_directory){
 	panic("The User Page Directory pointer is NULL");
 	}
@@ -946,6 +946,8 @@ void* create_user_kern_stack(uint32* ptr_user_page_directory)
 	//cprintf("Testing for an error");
 	return kern_stack_base;
 	
+#endif
+
 }
 
 /*2024*/

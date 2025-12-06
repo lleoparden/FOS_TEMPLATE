@@ -946,6 +946,9 @@ void* create_user_kern_stack(uint32* ptr_user_page_directory)
 	//cprintf("Testing for an error");
 	return kern_stack_base;
 	
+#else
+	panic("create_user_kern_stack():USE_KHEAP not enabled!)");
+
 #endif
 
 }
